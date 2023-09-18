@@ -235,11 +235,23 @@ public class Lexer implements ILexer {
                     
                 case IN_NUM:
                     while (Character.isDigit(chars[pos])) {
-                        pos++;
-                    }
-                    state = State.START;
-                    return new Token(Kind.NUM_LIT, startPos, pos - startPos, chars, new SourceLocation(line, column));
-                    
+						pos++;
+					}
+
+					String chArray = String.copyValueOf(chars);
+					String temp = chArray.substring(startPos,pos);
+
+					try {
+						int num = Integer.parseInt(temp);
+						if (num < Integer.MAX_VALUE) {
+							state = State.START;
+							return new Token(Kind.NUM_LIT, startPos, pos - startPos, chars, new SourceLocation(line, column));
+						} else {
+							throw new LexicalException("Number is out of range");
+						}
+					} catch (NumberFormatException e) {
+						throw new LexicalException("Invalid");
+					}
 
                 case IN_IDENT:
                 	while (Character.isJavaIdentifierPart(chars[pos])) 
