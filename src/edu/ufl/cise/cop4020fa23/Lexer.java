@@ -71,19 +71,22 @@ public class Lexer implements ILexer {
                 case START:
                     startPos = pos;
                     if (ch == '"') {
-                        pos++;  
-                        
-                        while (chars[pos] != '"' && chars[pos] != '\0') {
+                        pos++;
+
+                        while (chars[pos] != '"' && chars[pos] != '\0' && chars[pos] != '\n') {
                             pos++;
                         }
                         
                         if (chars[pos] == '"') {
-                            pos++;  
+                            pos++;
                             return new Token(Kind.STRING_LIT, startPos, pos - startPos, chars, new SourceLocation(line, column));
+                        } else if (chars[pos] == '\n') {
+                            throw new LexicalException(new SourceLocation(line, column), "Unterminated string literal with newline");
                         } else {
                             throw new LexicalException(new SourceLocation(line, column), "Unterminated string literal");
                         }
                     }
+
                     if (Character.isJavaIdentifierStart(ch)) {  
                         state = State.IN_IDENT;
                         pos++;
@@ -165,6 +168,10 @@ public class Lexer implements ILexer {
                         case '>': 
                             pos++;
                             return new Token(Kind.GT, startPos, 1, chars, new SourceLocation(line, column));
+                        case '*':
+                            pos++;
+                            return new Token(Kind.TIMES, startPos, 1, chars, new SourceLocation(line, column));
+
                         case '[':
                             if (chars[pos + 1] == ']') {
                                 pos += 2;
