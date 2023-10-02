@@ -220,14 +220,20 @@ public class ExpressionParser implements IParser {
 	
 	private Expr postfixExpr() throws PLCCompilerException {
 	 IToken firstToken = t;
-	 Expr primary = primaryExpr();
-	 if (t.kind() == LSQUARE) {
-	 return pixelSelector();
-	 } else if (Arrays.asList(RES_red, RES_green, RES_blue).contains(t.kind())) {
-	 return channelSelector();
-	 } else {
-	 return primary;
-	 }
+		Expr primary = primaryExpr();
+		if (primary == null) {
+			return null;
+		}
+		PixelSelector pixelSelector = null;
+		ChannelSelector channelSelector = null;
+		if (t.kind() == LSQUARE) {
+			pixelSelector = pixelSelector();
+		} else if (Arrays.asList(RES_red, RES_green, RES_blue).contains(t.kind())) {
+			channelSelector = channelSelector();
+		} else if (pixelSelector == null && channelSelector == null){
+			return primary;
+		}
+		return new PostfixExpr(firstToken, primary, pixelSelector, channelSelector);
 	}
 	
 	private Expr primaryExpr() throws PLCCompilerException {
