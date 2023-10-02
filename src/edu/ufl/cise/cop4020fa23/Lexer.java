@@ -198,6 +198,12 @@ public class Lexer implements ILexer {
                         case ';':
                             pos++;
                             return new Token(Kind.SEMI, startPos, 1, chars, new SourceLocation(line, column));
+                        case '(':
+                            pos++;
+                            return new Token(Kind.LPAREN, startPos, 1, chars, new SourceLocation(line, column));
+                        case ')':
+                            pos++;
+                            return new Token(Kind.RPAREN, startPos, 1, chars, new SourceLocation(line, column));
                         case '#':
                             pos++;
                             if (chars[pos] == '#') {
