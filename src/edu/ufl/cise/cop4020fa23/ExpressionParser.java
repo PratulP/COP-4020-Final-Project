@@ -219,47 +219,59 @@ public class ExpressionParser implements IParser {
 	}
 	
 	private Expr postfixExpr() throws PLCCompilerException {
-	 IToken firstToken = t;
-		Expr primary = primaryExpr();
-		if (primary == null) {
-			return null;
-		}
-		PixelSelector pixelSelector = null;
-		ChannelSelector channelSelector = null;
-		if (t.kind() == LSQUARE) {
-			pixelSelector = pixelSelector();
-		} else if (Arrays.asList(RES_red, RES_green, RES_blue).contains(t.kind())) {
-			channelSelector = channelSelector();
-		} else if (pixelSelector == null && channelSelector == null){
-			return primary;
-		}
-		return new PostfixExpr(firstToken, primary, pixelSelector, channelSelector);
-	}
-	
-	private Expr primaryExpr() throws PLCCompilerException {
 		 IToken firstToken = t;
-		 switch (t.kind()) {
-		 case STRING_LIT:
-		 consume();
-		 return new StringLitExpr(firstToken);
-		 case NUM_LIT:
-		 consume();
-		 return new NumLitExpr(firstToken);
-		 case IDENT:
-		 consume();
-		 return new IdentExpr(firstToken);
-		 case LPAREN:
-		 consume();
-		 Expr expr = expr();
-		 match(RPAREN);
-		 return expr;
-		 case CONST:
-		 consume();
-		 return new ConstExpr(firstToken);
-		 default:
-		 return expandedPixelExpr();
-		 }
+			Expr primary = primaryExpr();
+			if (primary == null) {
+				return null;
+			}
+			PixelSelector pixelSelector = null;
+			ChannelSelector channelSelector = null;
+			if (t.kind() == LSQUARE) {
+				pixelSelector = pixelSelector();
+			} else if (Arrays.asList(RES_red, RES_green, RES_blue).contains(t.kind())) {
+				channelSelector = channelSelector();
+			} else if (pixelSelector == null && channelSelector == null){
+				return primary;
+			}
+			return new PostfixExpr(firstToken, primary, pixelSelector, channelSelector);
 		}
+
+	private Expr primaryExpr() throws PLCCompilerException {
+	    IToken firstToken = t;
+	    switch (t.kind()) {
+	        case STRING_LIT:
+	            consume();
+	            return new StringLitExpr(firstToken);
+	        case NUM_LIT:
+	            consume();
+	            return new NumLitExpr(firstToken);
+	        case IDENT:
+	            consume();
+	            if (t.kind() == LSQUARE) {
+	                PixelSelector pixelSelector = pixelSelector();
+	                if (t.kind() == COLON) {
+	                    consume();
+	                    ChannelSelector channelSelector = channelSelector();
+	                    return new PostfixExpr(firstToken, new IdentExpr(firstToken), pixelSelector, channelSelector);
+	                } else {
+	                    return new PostfixExpr(firstToken, new IdentExpr(firstToken), pixelSelector, null);
+	                }
+	            }
+	            return new IdentExpr(firstToken);
+	        case LPAREN:
+	            consume();
+	            Expr expr = expr();
+	            match(RPAREN);
+	            return expr;
+	        case CONST:
+	            consume();
+	            return new ConstExpr(firstToken);
+	        default:
+	            return expandedPixelExpr();
+	    }
+	}
+
+
 
 	private  ChannelSelector channelSelector() throws PLCCompilerException {
 	 IToken firstToken = t;
@@ -314,6 +326,7 @@ public class ExpressionParser implements IParser {
 		t = lexer.next();
 		}
 	}
+
 
 
 
