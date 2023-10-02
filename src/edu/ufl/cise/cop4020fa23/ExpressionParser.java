@@ -261,7 +261,7 @@ public class ExpressionParser implements IParser {
 		 }
 		}
 
-	private Expr channelSelector() throws PLCCompilerException {
+	private  ChannelSelector channelSelector() throws PLCCompilerException {
 	 IToken firstToken = t;
 	 switch (t.kind()) {
 	 case RES_red:
@@ -278,7 +278,7 @@ public class ExpressionParser implements IParser {
 	 }
 	}
 	
-	private Expr pixelSelector() throws PLCCompilerException {
+	private PixelSelector pixelSelector() throws PLCCompilerException {
 	 IToken firstToken = t;
 	 match(LSQUARE);
 	 Expr x = expr();
