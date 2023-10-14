@@ -65,20 +65,21 @@ public class Lexer implements ILexer {
     public IToken next() throws LexicalException {
         while (true) {
             char ch = chars[pos];
-            column++;
 
             switch (state) {
                 case START:
                     startPos = pos;
+                    column++;
+
                     if (ch == '"') {
                         pos++;
-
                         while (chars[pos] != '"' && chars[pos] != '\0' && chars[pos] != '\n') {
                             pos++;
                         }
 
                         if (chars[pos] == '"') {
                             pos++;
+                            state = State.START;
                             return new Token(Kind.STRING_LIT, startPos, pos - startPos, chars, new SourceLocation(line, column));
                         } else if (chars[pos] == '\n') {
                             throw new LexicalException(new SourceLocation(line, column), "Unterminated string literal with newline");
@@ -92,14 +93,17 @@ public class Lexer implements ILexer {
                         pos++;
                         continue;
                     }
+
                     if (Character.isDigit(ch)) {
                         if (ch == '0') {
-                            state = State.HAVE_ZERO;
+                            pos++;
+                            state = State.START;
+                            return new Token(Kind.NUM_LIT, startPos, 1, chars, new SourceLocation(line, column));
                         } else {
                             state = State.IN_NUM;
+                            pos++;
+                            continue;
                         }
-                        pos++;
-                        continue;
                     }
                     switch (ch)
                     {
@@ -156,7 +160,15 @@ public class Lexer implements ILexer {
                                 pos++;
                                 return new Token(Kind.COLON, startPos, 1, chars, new SourceLocation(line, column));
                             }
-
+                        case '|':
+                            if (chars[pos + 1] == '|') {
+                                pos += 2;
+                                return new Token(Kind.OR, startPos, 2, chars, new SourceLocation(line, column));
+                            } else {
+                                pos++;
+                                return new Token(Kind.BITOR, startPos, 1, chars, new SourceLocation(line, column));
+                            }
+                            
                         case '-':
                             if (chars[pos + 1] == '>') {
                                 pos += 2;
@@ -166,12 +178,24 @@ public class Lexer implements ILexer {
                                 return new Token(Kind.MINUS, startPos, 1, chars, new SourceLocation(line, column));
                             }
                         case '>':
-                            pos++;
-                            return new Token(Kind.GT, startPos, 1, chars, new SourceLocation(line, column));
+                            if (chars[pos + 1] == '=') {
+                                pos += 2;
+                                return new Token(Kind.GE, startPos, 2, chars, new SourceLocation(line, column));
+                            } else {
+                                pos++;
+                                return new Token(Kind.GT, startPos, 1, chars, new SourceLocation(line, column));
+                            }
                         case '*':
+                            if (chars[pos + 1] == '*') {
+                                pos += 2;
+                                return new Token(Kind.EXP, startPos, 2, chars, new SourceLocation(line, column));
+                            } else {
+                                pos++;
+                                return new Token(Kind.TIMES, startPos, 1, chars, new SourceLocation(line, column));
+                            }
+                        case '^':
                             pos++;
-                            return new Token(Kind.TIMES, startPos, 1, chars, new SourceLocation(line, column));
-
+                            return new Token(Kind.RETURN, startPos, 1, chars, new SourceLocation(line, column));
                         case '[':
                             if (chars[pos + 1] == ']') {
                                 pos += 2;
@@ -251,24 +275,18 @@ public class Lexer implements ILexer {
                         pos++;
                     }
 
-                    String chArray = String.copyValueOf(chars);
-                    String temp = chArray.substring(startPos,pos);
+                    String numStr = new String(chars, startPos, pos - startPos);
 
                     try {
-                        int num = Integer.parseInt(temp);
-                        if (num < Integer.MAX_VALUE) {
-                            state = State.START;
-                            return new Token(Kind.NUM_LIT, startPos, pos - startPos, chars, new SourceLocation(line, column));
-                        } else {
-                            throw new LexicalException("Number is out of range");
-                        }
+                        Integer.parseInt(numStr);
+                        state = State.START;
+                        return new Token(Kind.NUM_LIT, startPos, pos - startPos, chars, new SourceLocation(line, column));
                     } catch (NumberFormatException e) {
-                        throw new LexicalException("Invalid");
+                        throw new LexicalException(new SourceLocation(line, column), "Invalid number");
                     }
 
                 case IN_IDENT:
-                    while (Character.isJavaIdentifierPart(chars[pos]))
-                    {
+                    while (pos < chars.length && Character.isJavaIdentifierPart(chars[pos])) {
                         pos++;
                     }
                     String ident = new String(chars, startPos, pos - startPos);
@@ -281,6 +299,8 @@ public class Lexer implements ILexer {
                         state = State.START;
                         return new Token(kind, startPos, ident.length(), chars, new SourceLocation(line, column));
                     }
+
+
                 default:
                     throw new LexicalException(new SourceLocation(line, column), "Unexpected character: " + ch);
             }
