@@ -12,6 +12,7 @@ package edu.ufl.cise.cop4020fa23;
 
 import static edu.ufl.cise.cop4020fa23.Kind.AND;
 import static edu.ufl.cise.cop4020fa23.Kind.BANG;
+import static edu.ufl.cise.cop4020fa23.Kind.BOOLEAN_LIT;
 import static edu.ufl.cise.cop4020fa23.Kind.BITAND;
 import static edu.ufl.cise.cop4020fa23.Kind.BITOR;
 import static edu.ufl.cise.cop4020fa23.Kind.COLON;
@@ -91,16 +92,7 @@ public class ExpressionParser implements IParser {
     private IToken t;
     private int current = 0;
     private ArrayList<IToken> tokens = new ArrayList<IToken>();
-    //private final List<IToken> tokens;
-    /*public ExpressionParser(List<IToken> tokens) {
-        this.tokens = tokens;
-        current = 0;
-    }*/
-    
-    /**
-     * @param lexer
-     * @throws LexicalException
-     */
+
     public ExpressionParser(ILexer lexer) throws LexicalException {
         super();
         this.lexer = lexer;
@@ -134,33 +126,34 @@ public class ExpressionParser implements IParser {
             Expr falseExpr = expr();
             return new ConditionalExpr(firstToken, guard, trueExpr, falseExpr);
         } else {
-            throw new SyntaxException("Not found");
+            return logicalOrExpr();
         }
     }
-    
+
     private Expr logicalOrExpr() throws PLCCompilerException {
         IToken firstToken = t;
         Expr left = logicalAndExpr();
-        if (t.kind() == OR) {
+        while (Arrays.asList(BITOR, OR).contains(t.kind())) {
             IToken op = t;
-            match(OR);
+            consume();
             Expr right = logicalAndExpr();
             left = new BinaryExpr(firstToken, left, op, right);
         }
         return left;
     }
-    
+
     private Expr logicalAndExpr() throws PLCCompilerException {
         IToken firstToken = t;
         Expr left = comparisonExpr();
-        if (t.kind() == AND) {
+        while (Arrays.asList(BITAND, AND).contains(t.kind())) {
             IToken op = t;
-            match(AND);
+            consume();
             Expr right = comparisonExpr();
             left = new BinaryExpr(firstToken, left, op, right);
         }
         return left;
     }
+
     
     private Expr comparisonExpr() throws PLCCompilerException {
         IToken firstToken = t;
@@ -231,15 +224,51 @@ public class ExpressionParser implements IParser {
         }
         PixelSelector pixelSelector = null;
         ChannelSelector channelSelector = null;
+        
+        if (Arrays.asList(RES_red, RES_green, RES_blue).contains(t.kind())) {
+            channelSelector = channelSelector();
+        }
+        
         if (t.kind() == LSQUARE) {
             pixelSelector = pixelSelector();
-        } else if (Arrays.asList(RES_red, RES_green, RES_blue).contains(t.kind())) {
-            channelSelector = channelSelector();
-        } else if (pixelSelector == null && channelSelector == null) {
+        }
+
+        if (pixelSelector == null && channelSelector == null) {
             return primary;
         }
+
         return new PostfixExpr(firstToken, primary, pixelSelector, channelSelector);
     }
+
+    private PixelSelector pixelSelector() throws PLCCompilerException {
+        IToken firstToken = t;
+        match(LSQUARE);
+        Expr x = expr();
+        match(COMMA);
+        Expr y = expr();
+        match(RSQUARE);
+        PixelSelector pixelSelector = new PixelSelector(firstToken, x, y);
+        return pixelSelector;
+    }
+
+    private ChannelSelector channelSelector() throws PLCCompilerException {
+        IToken firstToken = t;
+        switch (t.kind()) {
+            case RES_red:
+                consume();
+                return new ChannelSelector(firstToken, firstToken);
+            case RES_green:
+                consume();
+                return new ChannelSelector(firstToken, firstToken);
+            case RES_blue:
+                consume();
+                return new ChannelSelector(firstToken, firstToken);
+            default:
+                throw new SyntaxException("Expected channel selector");
+        }
+    }
+
+
     
     private Expr primaryExpr() throws PLCCompilerException {
         IToken firstToken = t;
@@ -265,6 +294,8 @@ public class ExpressionParser implements IParser {
                     consume();
                     ChannelSelector channelSelector = channelSelector();
                     return new PostfixExpr(firstToken, new IdentExpr(firstToken), null, channelSelector);
+                } else if (t.kind() == QUESTION) {
+                    return conditionalExpr();
                 }
                 return new IdentExpr(firstToken);
             case LPAREN:
@@ -275,37 +306,30 @@ public class ExpressionParser implements IParser {
             case CONST:
                 consume();
                 return new ConstExpr(firstToken);
+            case BOOLEAN_LIT:
+                return booleanLitExpr();
+            case BANG:
+            case MINUS:
+            case RES_width:
+            case RES_height:
+                IToken op = t;
+                consume();
+                Expr unaryExpr = unaryExpr();
+                return new UnaryExpr(firstToken, op, unaryExpr);
             default:
                 return expandedPixelExpr();
         }
     }
-
-    private ChannelSelector channelSelector() throws PLCCompilerException {
-        IToken firstToken = t;
-        switch (t.kind()) {
-            case RES_red:
-                consume();
-                return new ChannelSelector(firstToken, firstToken);
-            case RES_green:
-                consume();
-                return new ChannelSelector(firstToken, firstToken);
-            case RES_blue:
-                consume();
-                return new ChannelSelector(firstToken, firstToken);
-            default:
-                throw new SyntaxException("Expected channel selector");
-        }
-    }
     
-    private PixelSelector pixelSelector() throws PLCCompilerException {
+    private Expr booleanLitExpr() throws PLCCompilerException {
         IToken firstToken = t;
-        match(LSQUARE);
-        Expr x = expr();
-        match(COMMA);
-        Expr y = expr();
-        match(RSQUARE);
-        PixelSelector pixelSelector = new PixelSelector(firstToken, x, y);
-        return pixelSelector;
+        if (t.text().equals("TRUE") || t.text().equals("FALSE")) {
+            boolean isTrue = t.text().equals("TRUE");
+            consume();
+            return new BooleanLitExpr(firstToken);
+        } else {
+            throw new SyntaxException("Expected 'TRUE' or 'FALSE'");
+        }
     }
     
     private Expr expandedPixelExpr() throws PLCCompilerException {
@@ -332,6 +356,35 @@ public class ExpressionParser implements IParser {
         t = lexer.next();
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
