@@ -59,8 +59,10 @@ public class Lexer implements ILexer {
         reservedWordsMap.put("TRUE", Kind.BOOLEAN_LIT);
         reservedWordsMap.put("FALSE", Kind.BOOLEAN_LIT);
     }
-
-
+    
+    private boolean isIdentifierPart(char ch) {
+        return Character.isLetterOrDigit(ch) || ch == '_';
+    }
     @Override
     public IToken next() throws LexicalException {
         while (true) {
@@ -286,7 +288,7 @@ public class Lexer implements ILexer {
                     }
 
                 case IN_IDENT:
-                    while (pos < chars.length && Character.isJavaIdentifierPart(chars[pos])) {
+                    while (isIdentifierPart(chars[pos])) {
                         pos++;
                     }
                     String ident = new String(chars, startPos, pos - startPos);
