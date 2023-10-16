@@ -18,9 +18,7 @@ import static edu.ufl.cise.cop4020fa23.Kind.*;
 
 
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class Parser implements IParser {
 
@@ -534,18 +532,50 @@ public class Parser implements IParser {
         }
 
         return new LValue(firstToken, ident.firstToken, null, null);
+
+
+        //another implementation
+
+        /*PixelSelector pixelSelector;
+        if (t.kind() == LSQUARE) {
+            pixelSelector = pixelSelector();
+        } else {
+            pixelSelector = null;
+        }
+
+        ChannelSelector channelSelector;
+
+        if (t.kind() == COLON) {
+            match(COLON);
+            channelSelector = channelSelector();
+        } else {
+            channelSelector = null;
+        }
+
+        return new LValue(firstToken, ident.firstToken, pixelSelector, channelSelector);*/
+
     }
 
 
 
     private Statement statement() throws PLCCompilerException {
+        IToken firstToken = t;
+        Expr e;
         switch (t.kind()) {
             case RES_if:
                 //      return ifStatement();
+                    //List<GuardedBlock> guardedBlocks
+
+                    // return new IfStatement(t,guardedBlock);
+
                 //   case RES_while:
                 //       return whileStatement();
             case RES_do:
                 //       return doStatement();
+                    //List<GuardedBlock> guardedBlocks
+
+                    // return new DoStatement(t,guardedBlocks);
+
                 //    case RES_for:
                 //      return forStatement();
             case BLOCK_OPEN: // Assuming BLOCK_OPEN corresponds to '<:' (Block open)
@@ -556,9 +586,12 @@ public class Parser implements IParser {
                 //     return returnStatement();
             case RES_write:
                 // return writeStatement();
+                e = expr();
+                return new WriteStatement(t, e);
             default:
                 throw new SyntaxException("Invalid statement");
         }
+
     }
 
 
@@ -597,11 +630,6 @@ public class Parser implements IParser {
             throw new SyntaxException("Kind not found");
         }
     }
-
-    private void consume() throws PLCCompilerException {
-        t = lexer.next();
-    }
-}
 
     private void consume() throws PLCCompilerException {
         t = lexer.next();
