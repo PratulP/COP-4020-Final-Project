@@ -1,12 +1,12 @@
 /*Copyright 2023 by Beverly A Sanders
- *
- * This code is provided for solely for use of students in COP4020 Programming Language Concepts at the
- * University of Florida during the fall semester 2023 as part of the course project.
- *
- * No other use is authorized.
- *
- * This code may not be posted on a public web site either during or after the course.
- */
+        *
+        * This code is provided for solely for use of students in COP4020 Programming Language Concepts at the
+        * University of Florida during the fall semester 2023 as part of the course project.
+        *
+        * No other use is authorized.
+        *
+        * This code may not be posted on a public web site either during or after the course.
+        */
 package edu.ufl.cise.cop4020fa23;
 
 import edu.ufl.cise.cop4020fa23.ast.*;
@@ -42,20 +42,23 @@ public class Parser implements IParser {
 
     private AST program() throws PLCCompilerException {
         IToken firstToken = t;
-        IToken typeToken = t; 
-        match(Kind.RES_void); 
-        IToken nameToken = t; 
-        match(IDENT); 
+        IToken typeToken = t;
+        match(Kind.RES_void);
+        IToken nameToken = t;
+        match(IDENT);
         match(LPAREN);
         ArrayList<NameDef> paramList = param_list();
         match(RPAREN);
-        
-        Block block = null; 
-        
-        if (t.kind() == BLOCK_OPEN) {
-            block = block();
+
+       // Block block = block();
+
+        Block block = null;
+
+
+       if (t.kind() == BLOCK_OPEN) {
+           block = block();
         }
-        
+
         return new Program(firstToken, typeToken, nameToken, paramList, block);
     }
 
@@ -65,7 +68,9 @@ public class Parser implements IParser {
         IToken firstToken = t;
         List<Block.BlockElem> elems = new ArrayList<>();
 
-        match(BLOCK_OPEN);
+
+       match(BLOCK_OPEN);
+
 
         while (Arrays.asList(RES_int, RES_string, RES_boolean).contains(t.kind())) {
             elems.add(declaration());
@@ -75,25 +80,28 @@ public class Parser implements IParser {
             elems.add(statement());
         }
 
+
         match(BLOCK_CLOSE);
 
         return new Block(firstToken, elems);
     }
 
 
-    
+
     private ArrayList<NameDef> param_list() throws PLCCompilerException {
         ArrayList<NameDef> params = new ArrayList<>();
-        
+        IToken firstToken = t;
         if (t.kind() == RPAREN) {
-    
+
             return params;
         }
 
-        while (true) {
-            IToken typeToken = t; 
-            Type type = type(); 
-            IToken identToken = t; 
+        //same previous implementation but trying if-else statement instead
+
+        /*else {
+            IToken typeToken = t;
+            Type type = type();
+            IToken identToken = t;
             match(IDENT);
 
             Dimension dimension = null;
@@ -103,17 +111,68 @@ public class Parser implements IParser {
             }
 
             if (dimension != null) {
-                params.add(new NameDef(identToken, typeToken, dimension, identToken)); 
+                params.add(new NameDef(identToken, typeToken, dimension, identToken));
+            } else {
+                params.add(new NameDef(identToken, typeToken, null, identToken));
+            }
+
+            // if (t.kind() != COMMA) {
+            //  break;
+            // }
+
+            match(COMMA);
+        } */
+
+       while (true) {
+            IToken typeToken = t;
+            Type type = type();
+            IToken identToken = t;
+            match(IDENT);
+
+            Dimension dimension = null;
+
+            if (t.kind() == LSQUARE) {
+                dimension = dimension();
+            }
+
+            if (dimension != null) {
+                params.add(new NameDef(identToken, typeToken, dimension, identToken));
             } else {
                 params.add(new NameDef(identToken, typeToken, null, identToken));
             }
 
             if (t.kind() != COMMA) {
-                break; 
+                break;
             }
 
             match(COMMA);
         }
+
+        //different approach #1
+
+       /* NameDef nameDef = nameDef();
+        params.add(nameDef);
+        while (t.kind() == COMMA) {
+            match(COMMA);
+            nameDef = nameDef();
+            params.add(nameDef);
+        }*/
+
+
+        //different approach #2
+
+        /*if (t.kind() == RES_image || t.kind() == RES_pixel || t.kind() == RES_int || t.kind() == RES_string || t.kind() == RES_void) {
+            NameDef nameDef = nameDef();
+            params.add(nameDef);
+
+            while (t.kind() == COMMA) {
+                match(COMMA);
+                NameDef next = nameDef();
+                params.add(next);
+            }
+        }*/
+
+
 
         return params;
     }
@@ -121,12 +180,11 @@ public class Parser implements IParser {
 
 
 
-    
+
     private NameDef nameDef() throws PLCCompilerException {
-        IToken typeToken = t; 
-        Type type = type(); 
-        IToken identToken = t; 
-        match(IDENT);
+        IToken firstToken = t;
+        IToken typeToken = t;
+        Type type = type();
 
         Dimension dimension = null;
 
@@ -134,10 +192,14 @@ public class Parser implements IParser {
             dimension = dimension();
         }
 
+        IToken identToken = t;
+        match(IDENT);
+
         if (dimension != null) {
-            return new NameDef(identToken, typeToken, dimension, identToken); 
+
+            return new NameDef(firstToken, typeToken, dimension, identToken);
         } else {
-            return new NameDef(identToken, typeToken, null, identToken); 
+            return new NameDef(firstToken, typeToken, null, identToken);
         }
     }
 
@@ -146,12 +208,20 @@ public class Parser implements IParser {
 
     private Type type() throws PLCCompilerException {
         IToken firstToken = t;
+        //added the matches to each case (not sure if correct)
         switch (t.kind()) {
+            case RES_image:
+                match(RES_image);
+            case RES_pixel:
+                match(RES_pixel);
             case RES_int:
+                match(RES_int);
             case RES_string:
+                match(RES_string);
             case RES_boolean:
-                consume();
-               
+                match(RES_boolean);
+               // consume();
+
             default:
                 throw new SyntaxException("Expected a valid type");
         }
@@ -159,16 +229,23 @@ public class Parser implements IParser {
 
     private Declaration declaration() throws PLCCompilerException {
         IToken firstToken = t;
+        Expr e;
         Type type = type();
         NameDef nameDef = nameDef();
-        match(SEMI);
-        return new Declaration(firstToken, nameDef, null);
+        if (t.kind() == ASSIGN) {
+            match(ASSIGN);
+            e = expr();
+        } else {
+            e = null;
+        }
+        //match(SEMI);
+        return new Declaration(firstToken, nameDef, e);
     }
 
 
 
 
-     // REST OF GRAMMAR AFTER HW1
+    // REST OF GRAMMAR AFTER HW1
 
 
 
@@ -336,57 +413,57 @@ public class Parser implements IParser {
                 throw new SyntaxException("Expected channel selector");
         }
     }
-    
+
     private Expr primaryExpr() throws PLCCompilerException {
-		IToken firstToken = t;
-		switch (t.kind()) {
-			case STRING_LIT:
-				consume();
-				return new StringLitExpr(firstToken);
-			case NUM_LIT:
-				consume();
-				return new NumLitExpr(firstToken);
-			case IDENT:
-				consume();
-				if (t.kind() == LSQUARE) {
-					PixelSelector pixelSelector = pixelSelector();
-					if (t.kind() == COLON) {
-						consume();
-						ChannelSelector channelSelector = channelSelector();
-						return new PostfixExpr(firstToken, new IdentExpr(firstToken), pixelSelector, channelSelector);
-					} else {
-						return new PostfixExpr(firstToken, new IdentExpr(firstToken), pixelSelector, null);
-					}
-				} else if (t.kind() == COLON) {
-					consume();
-					ChannelSelector channelSelector = channelSelector();
-					return new PostfixExpr(firstToken, new IdentExpr(firstToken), null, channelSelector);
-				} else if (t.kind() == QUESTION) {
-					return conditionalExpr();
-				}
-				return new IdentExpr(firstToken);
-			case LPAREN:
-				consume();
-				Expr expr = expr();
-				match(RPAREN);
-				return expr;
-			case CONST:
-				consume();
-				return new ConstExpr(firstToken);
-			case BOOLEAN_LIT:
-				return booleanLitExpr();
-			case BANG:
-			case MINUS:
-			case RES_width:
-			case RES_height:
-				IToken op = t;
-				consume();
-				Expr unaryExpr = unaryExpr();
-				return new UnaryExpr(firstToken, op, unaryExpr);
-			default:
-				return expandedPixelExpr();
-		}
-	}
+        IToken firstToken = t;
+        switch (t.kind()) {
+            case STRING_LIT:
+                consume();
+                return new StringLitExpr(firstToken);
+            case NUM_LIT:
+                consume();
+                return new NumLitExpr(firstToken);
+            case IDENT:
+                consume();
+                if (t.kind() == LSQUARE) {
+                    PixelSelector pixelSelector = pixelSelector();
+                    if (t.kind() == COLON) {
+                        consume();
+                        ChannelSelector channelSelector = channelSelector();
+                        return new PostfixExpr(firstToken, new IdentExpr(firstToken), pixelSelector, channelSelector);
+                    } else {
+                        return new PostfixExpr(firstToken, new IdentExpr(firstToken), pixelSelector, null);
+                    }
+                } else if (t.kind() == COLON) {
+                    consume();
+                    ChannelSelector channelSelector = channelSelector();
+                    return new PostfixExpr(firstToken, new IdentExpr(firstToken), null, channelSelector);
+                } else if (t.kind() == QUESTION) {
+                    return conditionalExpr();
+                }
+                return new IdentExpr(firstToken);
+            case LPAREN:
+                consume();
+                Expr expr = expr();
+                match(RPAREN);
+                return expr;
+            case CONST:
+                consume();
+                return new ConstExpr(firstToken);
+            case BOOLEAN_LIT:
+                return booleanLitExpr();
+            case BANG:
+            case MINUS:
+            case RES_width:
+            case RES_height:
+                IToken op = t;
+                consume();
+                Expr unaryExpr = unaryExpr();
+                return new UnaryExpr(firstToken, op, unaryExpr);
+            default:
+                return expandedPixelExpr();
+        }
+    }
 
 
 
@@ -424,9 +501,9 @@ public class Parser implements IParser {
 
         if (t.kind() == LSQUARE) {
             match(LSQUARE);
-            widthExpr = expr(); 
+            widthExpr = expr();
             match(COMMA);
-            heightExpr = expr(); 
+            heightExpr = expr();
             match(RSQUARE);
         }
 
@@ -452,7 +529,7 @@ public class Parser implements IParser {
             ChannelSelector channelSelector = channelSelector();
             return new LValue(firstToken, ident.firstToken, null, channelSelector);
         } else if (t.kind() == QUESTION) {
-         
+
             return new LValue(firstToken, ident.firstToken, null, null);
         }
 
@@ -464,48 +541,48 @@ public class Parser implements IParser {
     private Statement statement() throws PLCCompilerException {
         switch (t.kind()) {
             case RES_if:
-          //      return ifStatement();
-         //   case RES_while:
-         //       return whileStatement();
+                //      return ifStatement();
+                //   case RES_while:
+                //       return whileStatement();
             case RES_do:
-         //       return doStatement();
-        //    case RES_for:
-          //      return forStatement();
+                //       return doStatement();
+                //    case RES_for:
+                //      return forStatement();
             case BLOCK_OPEN: // Assuming BLOCK_OPEN corresponds to '<:' (Block open)
                 return blockStatement();
             case IDENT:
-          //      return assignmentOrCallStatement();
-          //  case RES_return:
-           //     return returnStatement();
+                //      return assignmentOrCallStatement();
+                //  case RES_return:
+                //     return returnStatement();
             case RES_write:
-               // return writeStatement();
+                // return writeStatement();
             default:
                 throw new SyntaxException("Invalid statement");
         }
     }
 
-                 
+
 
     private GuardedBlock guardedBlock() throws PLCCompilerException {
         IToken firstToken = t;
-        
-        match(Kind.RES_if); 
-        
+
+        match(Kind.RES_if);
+
         Expr guard = expr();
-        
-        match(Kind.RES_fi); 
-        
+
+        match(Kind.RES_fi);
+
         Block block = block();
-        
+
         return new GuardedBlock(firstToken, guard, block);
     }
 
-    
+
     private StatementBlock blockStatement() throws PLCCompilerException {
         IToken firstToken = t;
         match(Kind.BLOCK_OPEN);
 
-        Block block = block(); 
+        Block block = block();
 
         match(Kind.BLOCK_CLOSE);
 
@@ -520,6 +597,11 @@ public class Parser implements IParser {
             throw new SyntaxException("Kind not found");
         }
     }
+
+    private void consume() throws PLCCompilerException {
+        t = lexer.next();
+    }
+}
 
     private void consume() throws PLCCompilerException {
         t = lexer.next();
