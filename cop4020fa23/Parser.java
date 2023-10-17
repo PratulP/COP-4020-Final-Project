@@ -1,12 +1,12 @@
 /*Copyright 2023 by Beverly A Sanders
-        *
-        * This code is provided for solely for use of students in COP4020 Programming Language Concepts at the
-        * University of Florida during the fall semester 2023 as part of the course project.
-        *
-        * No other use is authorized.
-        *
-        * This code may not be posted on a public web site either during or after the course.
-        */
+ *
+ * This code is provided for solely for use of students in COP4020 Programming Language Concepts at the
+ * University of Florida during the fall semester 2023 as part of the course project.
+ *
+ * No other use is authorized.
+ *
+ * This code may not be posted on a public web site either during or after the course.
+ */
 package edu.ufl.cise.cop4020fa23;
 
 import edu.ufl.cise.cop4020fa23.ast.*;
@@ -45,18 +45,18 @@ public class Parser implements IParser {
 
         if (Arrays.asList(RES_image, RES_pixel, RES_int, RES_string, RES_void, RES_boolean).contains(t.kind())) {
             typeToken = t;
-            consume(); 
+            consume();
         } else {
-            
+
             throw new PLCCompilerException("Expected a valid type");
         }
 
-       
+
         if (t.kind() == IDENT) {
             nameToken = t;
-            consume(); 
+            consume();
         } else {
-            
+
             throw new PLCCompilerException("Expected an IDENT");
         }
 
@@ -70,7 +70,12 @@ public class Parser implements IParser {
             block = block();
         }
 
-        return new Program(firstToken, typeToken, nameToken, paramList, block);
+        if (t.kind() != EOF) {
+        throw new SyntaxException("Issue");
+        } else {
+            return new Program(firstToken, typeToken, nameToken, paramList, block);
+        }
+
     }
 
 
@@ -94,24 +99,24 @@ public class Parser implements IParser {
             }
             match(SEMI);
         }
-
         match(BLOCK_CLOSE);
 
         Block blocker = new Block(firstToken, elems);
 
         return blocker;
     }
-    
+
     private ArrayList<NameDef> param_list() throws PLCCompilerException {
         ArrayList<NameDef> params = new ArrayList<>();
 
-        
-        if (t.kind() == RPAREN) {
+
+         if (t.kind() == RPAREN) {
             return params;
         }
 
         NameDef firstParam = nameDef();
         params.add(firstParam);
+
 
         while (t.kind() == COMMA) {
             match(COMMA);
@@ -146,7 +151,7 @@ public class Parser implements IParser {
         BOOLEAN,
         VOID
     }
-    
+
     private Type type() throws PLCCompilerException {
         IToken firstToken = t;
         Type type = null;
@@ -182,6 +187,7 @@ public class Parser implements IParser {
                 break;
             default:
                 throw new SyntaxException("Expected a valid type");
+
         }
 
         return type;
@@ -361,8 +367,8 @@ public class Parser implements IParser {
 
     private ChannelSelector channelSelector() throws PLCCompilerException {
         IToken firstToken = t;
-        match(COLON); 
-        IToken channelToken = t; 
+        match(COLON);
+        IToken channelToken = t;
         if (t.kind() == RES_red) {
             match(RES_red);
         } else if (t.kind() == RES_green) {
@@ -487,51 +493,54 @@ public class Parser implements IParser {
             channelSelector = channelSelector();
         }
 
+
         return new LValue(firstToken, nameToken, pixelSelector, channelSelector);
     }
-    
+
     private Statement statement() throws PLCCompilerException {
         IToken firstToken = t;
+
         switch (t.kind()) {
             case IDENT:
                 LValue lValue = lValue();
-                match(Kind.ASSIGN); 
+                match(Kind.ASSIGN);
                 Expr expr = expr();
                 return new AssignmentStatement(firstToken, lValue, expr);
 
             case RES_write:
-                match(Kind.RES_write); 
+                match(Kind.RES_write);
                 expr = expr();
                 return new WriteStatement(firstToken, expr);
 
             case RES_do:
-                match(Kind.RES_do); 
+                match(Kind.RES_do);
                 GuardedBlock doGuardedBlock = guardedBlock();
-                match(Kind.BOX); 
+                match(Kind.BOX);
                 List<GuardedBlock> guardedBlocks = new ArrayList<>();
                 while (t.kind() == Kind.RES_od) {
                     guardedBlocks.add(guardedBlock());
                 }
-                match(Kind.RES_od); 
-                return new DoStatement(firstToken, guardedBlocks); 
+                match(Kind.RES_od);
+                return new DoStatement(firstToken, guardedBlocks);
 
             case RES_if:
-                match(Kind.RES_if); 
+                match(Kind.RES_if);
                 GuardedBlock ifGuardedBlock = guardedBlock();
                 match(Kind.BOX);
-                guardedBlocks = new ArrayList<>(); 
+                guardedBlocks = new ArrayList<>();
 
                 while (t.kind() == Kind.RES_fi) {
-                    match(Kind.RES_fi); 
-                    guardedBlocks.add(guardedBlock()); 
+                    match(Kind.RES_fi);
+                    guardedBlocks.add(guardedBlock());
                 }
                 return new IfStatement(firstToken, guardedBlocks);
 
 
             case RETURN:
-                match(Kind.RETURN); 
+                match(Kind.RETURN);
                 expr = expr();
                 return new ReturnStatement(firstToken, expr);
+
 
             case BLOCK_OPEN:
                 Block block = block();
@@ -542,15 +551,15 @@ public class Parser implements IParser {
         }
     }
 
-        
+
 
 
 
     private GuardedBlock guardedBlock() throws PLCCompilerException {
         IToken firstToken = t;
-        Expr guard = expr(); 
-        match(Kind.RARROW); 
-        Block block = block(); 
+        Expr guard = expr();
+        match(Kind.RARROW);
+        Block block = block();
         return new GuardedBlock(firstToken, guard, block);
     }
 
@@ -558,7 +567,7 @@ public class Parser implements IParser {
 
     private StatementBlock blockStatement() throws PLCCompilerException {
         IToken firstToken = t;
-        Block block = block(); 
+        Block block = block();
         return new StatementBlock(firstToken, block);
     }
 
@@ -577,7 +586,7 @@ public class Parser implements IParser {
     }
 }
 
-    
+
 
 
 
