@@ -38,23 +38,36 @@ public class Parser implements IParser {
         return e;
     }
 
-    private AST program() throws PLCCompilerException {
+    private Program program() throws PLCCompilerException {
         IToken firstToken = t;
-        IToken typeToken = t;
-        match(Kind.RES_void);
-        IToken nameToken = t;
-        match(IDENT);
+        IToken typeToken = null;
+        IToken nameToken = null;
+
+        if (Arrays.asList(RES_image, RES_pixel, RES_int, RES_string, RES_void, RES_boolean).contains(t.kind())) {
+            typeToken = t;
+            consume(); 
+        } else {
+            
+            throw new PLCCompilerException("Expected a valid type");
+        }
+
+       
+        if (t.kind() == IDENT) {
+            nameToken = t;
+            consume(); 
+        } else {
+            
+            throw new PLCCompilerException("Expected an IDENT");
+        }
+
         match(LPAREN);
         ArrayList<NameDef> paramList = param_list();
         match(RPAREN);
 
-       // Block block = block();
-
         Block block = null;
 
-
-       if (t.kind() == BLOCK_OPEN) {
-           block = block();
+        if (t.kind() == BLOCK_OPEN) {
+            block = block();
         }
 
         return new Program(firstToken, typeToken, nameToken, paramList, block);
@@ -62,127 +75,59 @@ public class Parser implements IParser {
 
 
 
+
+
+
+
+
     private Block block() throws PLCCompilerException {
         IToken firstToken = t;
         List<Block.BlockElem> elems = new ArrayList<>();
 
+        match(BLOCK_OPEN);
 
-       match(BLOCK_OPEN);
-
-
-        while (Arrays.asList(RES_int, RES_string, RES_boolean).contains(t.kind())) {
-            elems.add(declaration());
+        while (t.kind() != BLOCK_CLOSE) {
+            if (Arrays.asList(RES_int, RES_string, RES_boolean).contains(t.kind())) {
+                elems.add(declaration());
+            } else {
+                elems.add(statement());
+            }
+            match(SEMI);
         }
-
-        while (t.kind() != RARROW && t.kind() != EOF && t.kind() != BLOCK_CLOSE) {
-            elems.add(statement());
-        }
-
 
         match(BLOCK_CLOSE);
 
-        return new Block(firstToken, elems);
+        Block blocker = new Block(firstToken, elems);
+
+        return blocker;
     }
-
-
-
+    
     private ArrayList<NameDef> param_list() throws PLCCompilerException {
         ArrayList<NameDef> params = new ArrayList<>();
-        IToken firstToken = t;
-        if (t.kind() == RPAREN) {
 
+        
+        if (t.kind() == RPAREN) {
             return params;
         }
 
-        //same previous implementation but trying if-else statement instead
+        NameDef firstParam = nameDef();
+        params.add(firstParam);
 
-        /*else {
-            IToken typeToken = t;
-            Type type = type();
-            IToken identToken = t;
-            match(IDENT);
-
-            Dimension dimension = null;
-
-            if (t.kind() == LSQUARE) {
-                dimension = dimension();
-            }
-
-            if (dimension != null) {
-                params.add(new NameDef(identToken, typeToken, dimension, identToken));
-            } else {
-                params.add(new NameDef(identToken, typeToken, null, identToken));
-            }
-
-            // if (t.kind() != COMMA) {
-            //  break;
-            // }
-
-            match(COMMA);
-        } */
-
-       while (true) {
-            IToken typeToken = t;
-            Type type = type();
-            IToken identToken = t;
-            match(IDENT);
-
-            Dimension dimension = null;
-
-            if (t.kind() == LSQUARE) {
-                dimension = dimension();
-            }
-
-            if (dimension != null) {
-                params.add(new NameDef(identToken, typeToken, dimension, identToken));
-            } else {
-                params.add(new NameDef(identToken, typeToken, null, identToken));
-            }
-
-            if (t.kind() != COMMA) {
-                break;
-            }
-
-            match(COMMA);
-        }
-
-        //different approach #1
-
-       /* NameDef nameDef = nameDef();
-        params.add(nameDef);
         while (t.kind() == COMMA) {
             match(COMMA);
-            nameDef = nameDef();
-            params.add(nameDef);
-        }*/
-
-
-        //different approach #2
-
-        /*if (t.kind() == RES_image || t.kind() == RES_pixel || t.kind() == RES_int || t.kind() == RES_string || t.kind() == RES_void) {
-            NameDef nameDef = nameDef();
-            params.add(nameDef);
-
-            while (t.kind() == COMMA) {
-                match(COMMA);
-                NameDef next = nameDef();
-                params.add(next);
-            }
-        }*/
-
-
+            NameDef nextParam = nameDef();
+            params.add(nextParam);
+        }
 
         return params;
     }
-
-
-
-
 
     private NameDef nameDef() throws PLCCompilerException {
         IToken firstToken = t;
         IToken typeToken = t;
         Type type = type();
+        IToken identToken = t;
+        match(IDENT);
 
         Dimension dimension = null;
 
@@ -190,55 +135,75 @@ public class Parser implements IParser {
             dimension = dimension();
         }
 
-        IToken identToken = t;
-        match(IDENT);
-
-        if (dimension != null) {
-
-            return new NameDef(firstToken, typeToken, dimension, identToken);
-        } else {
-            return new NameDef(firstToken, typeToken, null, identToken);
-        }
+        return new NameDef(firstToken, typeToken, dimension, identToken);
     }
 
-
-
-
+    enum Type {
+        IMAGE,
+        PIXEL,
+        INT,
+        STRING,
+        BOOLEAN,
+        VOID
+    }
+    
     private Type type() throws PLCCompilerException {
         IToken firstToken = t;
-        //added the matches to each case (not sure if correct)
+        Type type = null;
+
         switch (t.kind()) {
             case RES_image:
+                type = Type.IMAGE;
                 match(RES_image);
+                break;
             case RES_pixel:
+                type = Type.PIXEL;
                 match(RES_pixel);
+                break;
             case RES_int:
+                type = Type.INT;
                 match(RES_int);
+                break;
             case RES_string:
+                type = Type.STRING;
                 match(RES_string);
+                break;
+            case IDENT:
+                if (t.text().equals("void")) {
+                    type = Type.VOID;
+                    match(IDENT);
+                } else {
+                    throw new SyntaxException("Expected a valid type");
+                }
+                break;
             case RES_boolean:
+                type = Type.BOOLEAN;
                 match(RES_boolean);
-               // consume();
-
+                break;
             default:
                 throw new SyntaxException("Expected a valid type");
         }
+
+        return type;
     }
+
+
 
     private Declaration declaration() throws PLCCompilerException {
         IToken firstToken = t;
-        Expr e;
-        Type type = type();
         NameDef nameDef = nameDef();
+        Expr initializer = null;
+
         if (t.kind() == ASSIGN) {
             match(ASSIGN);
-            e = expr();
-        } else {
-            e = null;
+            initializer = expr();
         }
-        //match(SEMI);
-        return new Declaration(firstToken, nameDef, e);
+
+        match(SEMI); 
+
+        return new Declaration(firstToken, nameDef, initializer);
     }
+
 
 
 
@@ -510,117 +475,94 @@ public class Parser implements IParser {
 
     private LValue lValue() throws PLCCompilerException {
         IToken firstToken = t;
-        IdentExpr ident = new IdentExpr(t);
+        IToken nameToken = t;
         match(IDENT);
 
-        if (t.kind() == LSQUARE) {
-            PixelSelector pixelSelector = pixelSelector();
-            if (t.kind() == COLON) {
-                match(COLON);
-                ChannelSelector channelSelector = channelSelector();
-                return new LValue(firstToken, ident.firstToken, pixelSelector, channelSelector);
-            } else {
-                return new LValue(firstToken, ident.firstToken, pixelSelector, null);
-            }
-        } else if (t.kind() == COLON) {
-            match(COLON);
-            ChannelSelector channelSelector = channelSelector();
-            return new LValue(firstToken, ident.firstToken, null, channelSelector);
-        } else if (t.kind() == QUESTION) {
-
-            return new LValue(firstToken, ident.firstToken, null, null);
-        }
-
-        return new LValue(firstToken, ident.firstToken, null, null);
-
-
-        //another implementation
-
-        /*PixelSelector pixelSelector;
+        PixelSelector pixelSelector = null;
         if (t.kind() == LSQUARE) {
             pixelSelector = pixelSelector();
-        } else {
-            pixelSelector = null;
         }
 
-        ChannelSelector channelSelector;
-
+        ChannelSelector channelSelector = null;
         if (t.kind() == COLON) {
-            match(COLON);
             channelSelector = channelSelector();
-        } else {
-            channelSelector = null;
         }
 
-        return new LValue(firstToken, ident.firstToken, pixelSelector, channelSelector);*/
-
+        return new LValue(firstToken, nameToken, pixelSelector, channelSelector);
     }
-
-
-
+    
     private Statement statement() throws PLCCompilerException {
         IToken firstToken = t;
-        Expr e;
         switch (t.kind()) {
-            case RES_if:
-                //      return ifStatement();
-                    //List<GuardedBlock> guardedBlocks
-
-                    // return new IfStatement(t,guardedBlock);
-
-                //   case RES_while:
-                //       return whileStatement();
-            case RES_do:
-                //       return doStatement();
-                    //List<GuardedBlock> guardedBlocks
-
-                    // return new DoStatement(t,guardedBlocks);
-
-                //    case RES_for:
-                //      return forStatement();
-            case BLOCK_OPEN: // Assuming BLOCK_OPEN corresponds to '<:' (Block open)
-                return blockStatement();
             case IDENT:
-                //      return assignmentOrCallStatement();
-                //  case RES_return:
-                //     return returnStatement();
-            case RES_write:
-                // return writeStatement();
-                e = expr();
-                return new WriteStatement(t, e);
-            default:
-                throw new SyntaxException("Invalid statement");
-        }
+                LValue lValue = lValue();
+                match(Kind.ASSIGN); 
+                Expr expr = expr();
+                return new AssignmentStatement(firstToken, lValue, expr);
 
+            case RES_write:
+                match(Kind.RES_write); 
+                expr = expr();
+                return new WriteStatement(firstToken, expr);
+
+            case RES_do:
+                match(Kind.RES_do); 
+                GuardedBlock doGuardedBlock = guardedBlock();
+                match(Kind.BOX); 
+                List<GuardedBlock> guardedBlocks = new ArrayList<>();
+                while (t.kind() == Kind.RES_od) {
+                    guardedBlocks.add(guardedBlock());
+                }
+                match(Kind.RES_od); 
+                return new DoStatement(firstToken, guardedBlocks); 
+
+            case RES_if:
+                match(Kind.RES_if); 
+                GuardedBlock ifGuardedBlock = guardedBlock();
+                match(Kind.BOX);
+                guardedBlocks = new ArrayList<>(); 
+
+                while (t.kind() == Kind.RES_fi) {
+                    match(Kind.RES_fi); 
+                    guardedBlocks.add(guardedBlock()); 
+                }
+                return new IfStatement(firstToken, guardedBlocks);
+
+
+            case RETURN:
+                match(Kind.RETURN); 
+                expr = expr();
+                return new ReturnStatement(firstToken, expr);
+
+            case BLOCK_OPEN:
+                Block block = block();
+                return new StatementBlock(firstToken, block);
+
+            default:
+                throw new PLCCompilerException("Unexpected token: " + t.kind());
+        }
     }
+
+        
 
 
 
     private GuardedBlock guardedBlock() throws PLCCompilerException {
         IToken firstToken = t;
-
-        match(Kind.RES_if);
-
-        Expr guard = expr();
-
-        match(Kind.RES_fi);
-
-        Block block = block();
-
+        Expr guard = expr(); 
+        match(Kind.RARROW); 
+        Block block = block(); 
         return new GuardedBlock(firstToken, guard, block);
     }
 
 
+
     private StatementBlock blockStatement() throws PLCCompilerException {
         IToken firstToken = t;
-        match(Kind.BLOCK_OPEN);
-
-        Block block = block();
-
-        match(Kind.BLOCK_CLOSE);
-
+        Block block = block(); 
         return new StatementBlock(firstToken, block);
     }
+
 
 
     private void match(Kind kind) throws PLCCompilerException {
@@ -635,3 +577,8 @@ public class Parser implements IParser {
         t = lexer.next();
     }
 }
+
+    
+
+
+
