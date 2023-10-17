@@ -199,7 +199,6 @@ public class Parser implements IParser {
             initializer = expr();
         }
 
-        match(SEMI); 
 
         return new Declaration(firstToken, nameDef, initializer);
     }
