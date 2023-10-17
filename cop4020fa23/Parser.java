@@ -361,20 +361,20 @@ public class Parser implements IParser {
 
     private ChannelSelector channelSelector() throws PLCCompilerException {
         IToken firstToken = t;
-        switch (t.kind()) {
-            case RES_red:
-                consume();
-                return new ChannelSelector(firstToken, firstToken);
-            case RES_green:
-                consume();
-                return new ChannelSelector(firstToken, firstToken);
-            case RES_blue:
-                consume();
-                return new ChannelSelector(firstToken, firstToken);
-            default:
-                throw new SyntaxException("Expected channel selector");
+        match(COLON); 
+        IToken channelToken = t; 
+        if (t.kind() == RES_red) {
+            match(RES_red);
+        } else if (t.kind() == RES_green) {
+            match(RES_green);
+        } else if (t.kind() == RES_blue) {
+            match(RES_blue);
+        } else {
+            throw new SyntaxException("Expected channel selector");
         }
+        return new ChannelSelector(firstToken, channelToken);
     }
+
 
     private Expr primaryExpr() throws PLCCompilerException {
         IToken firstToken = t;
