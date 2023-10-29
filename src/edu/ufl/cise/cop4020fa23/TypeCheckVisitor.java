@@ -5,9 +5,6 @@ import edu.ufl.cise.cop4020fa23.exceptions.PLCCompilerException;
 
 public class TypeCheckVisitor implements ASTVisitor {
 
-    /*public Object visit(ASTVisitor v, Object arg) {
-        return v.visitX(this, arg);
-    }*/
 
     @Override
     public Object visitAssignmentStatement(AssignmentStatement assignmentStatement, Object arg) throws PLCCompilerException {
@@ -17,7 +14,20 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitBinaryExpr(BinaryExpr binaryExpr, Object arg) throws PLCCompilerException {
-        return null;
+
+        // from PowerPoint example
+
+        int left = (int)binaryExpr.getLeftExpr().visit(this, arg);
+        int right = (int)binaryExpr.getRightExpr().visit(this,arg);
+        Kind opKind = binaryExpr.getOpKind();
+        int val = switch(opKind) {
+            case PLUS -> left + right;
+            case MINUS -> left - right;
+            case TIMES -> left * right;
+            case DIV -> left / right;
+            default -> throw new PLCCompilerException();
+            };
+            return val;
     }
 
     @Override
