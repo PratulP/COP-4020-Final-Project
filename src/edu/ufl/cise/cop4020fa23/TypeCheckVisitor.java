@@ -3,6 +3,7 @@ package edu.ufl.cise.cop4020fa23;
 import edu.ufl.cise.cop4020fa23.ast.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import edu.ufl.cise.cop4020fa23.exceptions.PLCCompilerException;
 import edu.ufl.cise.cop4020fa23.exceptions.TypeCheckException;
 import edu.ufl.cise.cop4020fa23.exceptions.LexicalException;
@@ -10,7 +11,7 @@ import edu.ufl.cise.cop4020fa23.exceptions.SyntaxException;
 
 public class TypeCheckVisitor implements ASTVisitor {
     private SymbolTable symbolTable = new SymbolTable();
-    
+
     @Override
     public Object visitAssignmentStatement(AssignmentStatement assignmentStatement, Object arg) throws PLCCompilerException {
         symbolTable.enterScope();
@@ -35,7 +36,7 @@ public class TypeCheckVisitor implements ASTVisitor {
         return null;
     }
 
-    
+
     @Override
     public Object visitBinaryExpr(BinaryExpr binaryExpr, Object arg) throws PLCCompilerException {
 
@@ -48,16 +49,19 @@ public class TypeCheckVisitor implements ASTVisitor {
             case TIMES -> left * right;
             case DIV -> left / right;
             default -> throw new PLCCompilerException();
-            };
-            return val;
+        };
+        return val;
     }
 
     @Override
     public Object visitBlock(Block block, Object arg) throws PLCCompilerException {
+        symbolTable.enterScope();
         for (Block.BlockElem elem : block.getElems()) {
             elem.visit(this, arg);
         }
-        return null;
+        symbolTable.leaveScope();
+        //return null;
+        return block;
     }
 
     @Override
@@ -80,7 +84,7 @@ public class TypeCheckVisitor implements ASTVisitor {
     public Object visitChannelSelector(ChannelSelector channelSelector, Object arg) throws PLCCompilerException {
         boolean isLValueContext = (arg instanceof LValue);
 
-        Kind colorKind = channelSelector.color(); 
+        Kind colorKind = channelSelector.color();
 
         if (colorKind != Kind.RES_red && colorKind != Kind.RES_green && colorKind != Kind.RES_blue) {
             throw new PLCCompilerException("Invalid channel selector color");
@@ -185,7 +189,8 @@ public class TypeCheckVisitor implements ASTVisitor {
             throw new PLCCompilerException("Dimension width and height must be of type INT");
         }
 
-        return null;
+        return dimension;
+       // return null;
     }
 
     @Override
@@ -299,8 +304,8 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitNumLitExpr(NumLitExpr numLitExpr, Object arg) throws PLCCompilerException {
- 
-        String numText = numLitExpr.getText();
+
+       /* String numText = numLitExpr.getText();
 
         try {
             Integer.parseInt(numText);
@@ -308,7 +313,11 @@ public class TypeCheckVisitor implements ASTVisitor {
             throw new PLCCompilerException("Invalid numeric literal: " + numText);
         }
 
-        return null;
+        return null;*/
+
+        Type type = Type.INT;
+        numLitExpr.setType(type);
+        return type;
     }
 
     @Override
@@ -338,8 +347,19 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitProgram(Program program, Object arg) throws PLCCompilerException {
+        /*program.getBlock().visit(this, arg);
+        return null;*/
+
+        Type type = Type.kind2type(program.getTypeToken().kind());
+        program.setType(type);
+        symbolTable.enterScope();
+        List<NameDef> params = program.getParams();
+        for (NameDef param : params) {
+            param.visit(this, arg);
+        }
         program.getBlock().visit(this, arg);
-        return null;
+        symbolTable.leaveScope();
+        return type;
     }
 
 
@@ -347,7 +367,7 @@ public class TypeCheckVisitor implements ASTVisitor {
     public Object visitReturnStatement(ReturnStatement returnStatement, Object arg) throws PLCCompilerException {
 
         if (returnStatement.getE() != null) {
-        	
+
             returnStatement.getE().visit(this, arg);
 
         }
@@ -358,13 +378,13 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitBlockStatement(StatementBlock statementBlock, Object arg) throws PLCCompilerException {
-        symbolTable.enterScope(); 
+        symbolTable.enterScope();
 
         for (Block.BlockElem elem : statementBlock.getBlock().getElems()) {
             elem.visit(this, arg);
         }
 
-        symbolTable.leaveScope(); 
+        symbolTable.leaveScope();
 
         return null;
     }
@@ -413,8 +433,9 @@ public class TypeCheckVisitor implements ASTVisitor {
             throw new PLCCompilerException("Invalid type for write statement: " + writeStatement.getExpr().getType());
         }
 
-        return null;
+        //return null;
+        return writeStatement;
     }
-    
-    
+
+
 }
