@@ -1,21 +1,43 @@
 package edu.ufl.cise.cop4020fa23;
 
 import edu.ufl.cise.cop4020fa23.ast.*;
+import java.util.HashMap;
+import java.util.Map;
 import edu.ufl.cise.cop4020fa23.exceptions.PLCCompilerException;
+import edu.ufl.cise.cop4020fa23.exceptions.TypeCheckException;
+import edu.ufl.cise.cop4020fa23.exceptions.LexicalException;
+import edu.ufl.cise.cop4020fa23.exceptions.SyntaxException;
 
 public class TypeCheckVisitor implements ASTVisitor {
-
-
+    private SymbolTable symbolTable = new SymbolTable();
+    
     @Override
     public Object visitAssignmentStatement(AssignmentStatement assignmentStatement, Object arg) throws PLCCompilerException {
-        // implement
+        symbolTable.enterScope();
+
+        Expr e = assignmentStatement.getE();
+
+        LValue lValue = assignmentStatement.getlValue();
+
+        Type lValueType = (Type) lValue.visit(this, arg);
+
+        Type exprType = (Type) e.visit(this, arg);
+
+        if (lValueType == Type.IMAGE) {
+            if (exprType != Type.PIXEL && exprType != Type.INT) {
+                throw new PLCCompilerException("Assignment type mismatch");
+            }
+        } else if (lValueType != exprType) {
+            throw new PLCCompilerException("Assignment type mismatch");
+        }
+
+        symbolTable.leaveScope();
         return null;
     }
 
+    
     @Override
     public Object visitBinaryExpr(BinaryExpr binaryExpr, Object arg) throws PLCCompilerException {
-
-        // from PowerPoint example
 
         int left = (int)binaryExpr.getLeftExpr().visit(this, arg);
         int right = (int)binaryExpr.getRightExpr().visit(this,arg);
@@ -32,61 +54,199 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitBlock(Block block, Object arg) throws PLCCompilerException {
+        for (Block.BlockElem elem : block.getElems()) {
+            elem.visit(this, arg);
+        }
         return null;
     }
 
     @Override
     public Object visitBooleanLitExpr(BooleanLitExpr booleanLitExpr, Object arg) throws PLCCompilerException {
-        return null;
+        String boolText = booleanLitExpr.getText();
+
+        boolean boolValue;
+        if (boolText.equals("true")) {
+            boolValue = true;
+        } else if (boolText.equals("false")) {
+            boolValue = false;
+        } else {
+            throw new PLCCompilerException("Invalid boolean literal: " + boolText);
+        }
+
+        return boolValue;
     }
 
     @Override
     public Object visitChannelSelector(ChannelSelector channelSelector, Object arg) throws PLCCompilerException {
-        return null;
+        boolean isLValueContext = (arg instanceof LValue);
+
+        Kind colorKind = channelSelector.color(); 
+        IToken colorToken = (IToken) colorKind;
+
+        if (colorKind != Kind.RES_red && colorKind != Kind.RES_green && colorKind != Kind.RES_blue) {
+            throw new PLCCompilerException("Invalid channel selector color");
+        }
+
+        if (isLValueContext) {
+            LValue lValue = (LValue) arg;
+            Type lValueType = lValue.getVarType();
+
+            if (lValueType != Type.PIXEL) {
+                throw new PLCCompilerException("Channel selector can only be used with PIXEL type");
+            }
+        }
+
+        return colorKind;
     }
+
 
     @Override
     public Object visitConditionalExpr(ConditionalExpr conditionalExpr, Object arg) throws PLCCompilerException {
-        return null;
+        Type guardType = (Type) conditionalExpr.getGuardExpr().visit(this, arg);
+
+        if (guardType != Type.BOOLEAN) {
+            throw new PLCCompilerException("Conditional guard expression must have BOOLEAN type");
+        }
+
+        Type trueType = (Type) conditionalExpr.getTrueExpr().visit(this, arg);
+        Type falseType = (Type) conditionalExpr.getFalseExpr().visit(this, arg);
+
+        if (trueType != falseType) {
+            throw new PLCCompilerException("Conditional expressions must have the same type");
+        }
+
+        return trueType;
     }
 
     @Override
     public Object visitConstExpr(ConstExpr constExpr, Object arg) throws PLCCompilerException {
-        return null;
+        String constName = constExpr.getName();
+
+        Type constType;
+        switch (constName) {
+            case "Z":
+                constType = Type.INT;
+                break;
+            case "BLACK":
+            case "BLUE":
+            case "CYAN":
+            case "DARK_GRAY":
+            case "GRAY":
+            case "GREEN":
+            case "LIGHT_GRAY":
+            case "MAGENTA":
+            case "ORANGE":
+            case "PINK":
+            case "RED":
+            case "WHITE":
+            case "YELLOW":
+                constType = Type.PIXEL;
+                break;
+            case "TRUE":
+            case "FALSE":
+                constType = Type.BOOLEAN;
+                break;
+            default:
+                throw new PLCCompilerException("Undefined constant: " + constName);
+        }
+
+        return constType;
     }
 
     @Override
     public Object visitDeclaration(Declaration declaration, Object arg) throws PLCCompilerException {
+        NameDef nameDef = declaration.getNameDef();
+        Expr initializer = declaration.getInitializer();
+
+        if (initializer == null) {
+            Type declaredType = nameDef.getType();
+            if (declaredType != Type.INT && declaredType != Type.BOOLEAN && declaredType != Type.STRING) {
+                throw new PLCCompilerException("Invalid type for declaration: " + declaredType);
+            }
+        } else {
+            Type declaredType = nameDef.getType();
+            Type initializedType = (Type) initializer.visit(this, arg);
+
+            if (declaredType != initializedType) {
+                throw new PLCCompilerException("Type mismatch in declaration");
+            }
+        }
+
+        symbolTable.insert(nameDef);
+
         return null;
     }
 
     @Override
     public Object visitDimension(Dimension dimension, Object arg) throws PLCCompilerException {
+        Type widthType = (Type) dimension.getWidth().visit(this, arg);
+        Type heightType = (Type) dimension.getHeight().visit(this, arg);
+
+        if (widthType != Type.INT || heightType != Type.INT) {
+            throw new PLCCompilerException("Dimension width and height must be of type INT");
+        }
+
         return null;
     }
 
     @Override
     public Object visitDoStatement(DoStatement doStatement, Object arg) throws PLCCompilerException {
+        if (doStatement.getGuardedBlocks().isEmpty()) {
+            throw new PLCCompilerException("Do statement must have at least one guarded block");
+        }
+
+        for (GuardedBlock guardedBlock : doStatement.getGuardedBlocks()) {
+            guardedBlock.visit(this, arg);
+        }
+
         return null;
     }
 
     @Override
     public Object visitExpandedPixelExpr(ExpandedPixelExpr expandedPixelExpr, Object arg) throws PLCCompilerException {
-        return null;
+        Type redType = (Type) expandedPixelExpr.getRed().visit(this, arg);
+        Type greenType = (Type) expandedPixelExpr.getGreen().visit(this, arg);
+        Type blueType = (Type) expandedPixelExpr.getBlue().visit(this, arg);
+
+        if (redType != Type.PIXEL || greenType != Type.PIXEL || blueType != Type.PIXEL) {
+            throw new PLCCompilerException("ExpandedPixelExpr components must have type PIXEL");
+        }
+
+        return Type.PIXEL;
     }
 
     @Override
     public Object visitGuardedBlock(GuardedBlock guardedBlock, Object arg) throws PLCCompilerException {
-        return null;
+        Type guardType = (Type) guardedBlock.getGuard().visit(this, arg);
+
+        if (guardType != Type.BOOLEAN) {
+            throw new PLCCompilerException("Guard expression must have type BOOLEAN");
+        }
+
+        guardedBlock.getBlock().visit(this, arg);
+
+        return Type.VOID;
     }
 
     @Override
     public Object visitIdentExpr(IdentExpr identExpr, Object arg) throws PLCCompilerException {
-        return null;
+        if (identExpr.getNameDef() == null) {
+            throw new PLCCompilerException("Undefined identifier: " + identExpr.getName());
+        }
+
+        return identExpr.getNameDef().getType();
     }
 
     @Override
     public Object visitIfStatement(IfStatement ifStatement, Object arg) throws PLCCompilerException {
+        if (ifStatement.getGuardedBlocks().isEmpty()) {
+            throw new PLCCompilerException("If statement must have at least one guarded block");
+        }
+
+        for (GuardedBlock guardedBlock : ifStatement.getGuardedBlocks()) {
+            guardedBlock.visit(this, arg);
+        }
+
         return null;
     }
 
@@ -97,11 +257,39 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitNameDef(NameDef nameDef, Object arg) throws PLCCompilerException {
+
+        Type declaredType = nameDef.getType();
+
+        if (declaredType != Type.INT && declaredType != Type.BOOLEAN && declaredType != Type.STRING) {
+            throw new PLCCompilerException("Invalid type for name definition: " + declaredType);
+        }
+
+        Dimension dimension = nameDef.getDimension();
+        if (dimension != null) {
+            dimension.visit(this, arg);
+
+            Type widthType = dimension.getWidth().getType();
+            Type heightType = dimension.getHeight().getType();
+
+            if (widthType != Type.INT || heightType != Type.INT) {
+                throw new PLCCompilerException("Dimension width and height must be of type INT");
+            }
+        }
+
         return null;
     }
 
     @Override
     public Object visitNumLitExpr(NumLitExpr numLitExpr, Object arg) throws PLCCompilerException {
+ 
+        String numText = numLitExpr.getText();
+
+        try {
+            Integer.parseInt(numText);
+        } catch (NumberFormatException e) {
+            throw new PLCCompilerException("Invalid numeric literal: " + numText);
+        }
+
         return null;
     }
 
@@ -144,5 +332,6 @@ public class TypeCheckVisitor implements ASTVisitor {
     public Object visitWriteStatement(WriteStatement writeStatement, Object arg) throws PLCCompilerException {
         return null;
     }
+    
+    
 }
-
