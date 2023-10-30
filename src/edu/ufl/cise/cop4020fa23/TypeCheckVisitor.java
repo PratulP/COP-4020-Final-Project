@@ -81,7 +81,6 @@ public class TypeCheckVisitor implements ASTVisitor {
         boolean isLValueContext = (arg instanceof LValue);
 
         Kind colorKind = channelSelector.color(); 
-        IToken colorToken = (IToken) colorKind;
 
         if (colorKind != Kind.RES_red && colorKind != Kind.RES_green && colorKind != Kind.RES_blue) {
             throw new PLCCompilerException("Invalid channel selector color");
@@ -252,9 +251,28 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitLValue(LValue lValue, Object arg) throws PLCCompilerException {
-        return null;
-    }
+        if (lValue.getNameDef() == null) {
+            throw new PLCCompilerException("Undefined identifier: " + lValue.getName());
+        }
 
+        if (lValue.getPixelSelector() != null) {
+            lValue.getPixelSelector().visit(this, arg);
+
+            if (lValue.getVarType() != Type.IMAGE) {
+                throw new PLCCompilerException("Pixel selector can only be used with IMAGE type");
+            }
+        }
+
+        if (lValue.getChannelSelector() != null) {
+            lValue.getChannelSelector().visit(this, arg);
+
+            if (lValue.getVarType() != Type.PIXEL && lValue.getVarType() != Type.IMAGE) {
+                throw new PLCCompilerException("Channel selector can only be used with PIXEL or IMAGE type");
+            }
+        }
+
+        return lValue.getVarType();
+    }
     @Override
     public Object visitNameDef(NameDef nameDef, Object arg) throws PLCCompilerException {
 
@@ -295,26 +313,59 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitPixelSelector(PixelSelector pixelSelector, Object arg) throws PLCCompilerException {
+
+        pixelSelector.xExpr().visit(this, arg);
+        pixelSelector.yExpr().visit(this, arg);
+
         return null;
     }
 
     @Override
     public Object visitPostfixExpr(PostfixExpr postfixExpr, Object arg) throws PLCCompilerException {
+
+        postfixExpr.primary().visit(this, arg);
+
+        if (postfixExpr.pixel() != null) {
+            postfixExpr.pixel().visit(this, arg);
+        }
+
+        if (postfixExpr.channel() != null) {
+            postfixExpr.channel().visit(this, arg);
+        }
+
         return null;
     }
 
     @Override
     public Object visitProgram(Program program, Object arg) throws PLCCompilerException {
+        program.getBlock().visit(this, arg);
         return null;
     }
+
 
     @Override
     public Object visitReturnStatement(ReturnStatement returnStatement, Object arg) throws PLCCompilerException {
+
+        if (returnStatement.getE() != null) {
+        	
+            returnStatement.getE().visit(this, arg);
+
+        }
+
         return null;
     }
 
+
     @Override
     public Object visitBlockStatement(StatementBlock statementBlock, Object arg) throws PLCCompilerException {
+        symbolTable.enterScope(); 
+
+        for (Block.BlockElem elem : statementBlock.getBlock().getElems()) {
+            elem.visit(this, arg);
+        }
+
+        symbolTable.leaveScope(); 
+
         return null;
     }
 
@@ -325,11 +376,43 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitUnaryExpr(UnaryExpr unaryExpr, Object arg) throws PLCCompilerException {
+
+        unaryExpr.getExpr().visit(this, arg);
+
+        switch (unaryExpr.getOp()) {
+            case MINUS:
+                if (unaryExpr.getExpr().getType() != Type.INT) {
+                    throw new PLCCompilerException("Unary minus (-) can only be applied to INT expressions.");
+                }
+                break;
+            case BANG:
+                if (unaryExpr.getExpr().getType() != Type.BOOLEAN) {
+                    throw new PLCCompilerException("Logical NOT (!) can only be applied to BOOLEAN expressions.");
+                }
+                break;
+            case RES_width:
+            case RES_height:
+                if (unaryExpr.getExpr().getType() != Type.IMAGE) {
+                    throw new PLCCompilerException("RES_width and RES_height can only be applied to IMAGE expressions.");
+                }
+                break;
+        }
+
+
         return null;
     }
-
     @Override
     public Object visitWriteStatement(WriteStatement writeStatement, Object arg) throws PLCCompilerException {
+
+        writeStatement.getExpr().visit(this, arg);
+
+
+        if (writeStatement.getExpr().getType() != Type.INT
+                && writeStatement.getExpr().getType() != Type.STRING
+                && writeStatement.getExpr().getType() != Type.BOOLEAN) {
+            throw new PLCCompilerException("Invalid type for write statement: " + writeStatement.getExpr().getType());
+        }
+
         return null;
     }
     
