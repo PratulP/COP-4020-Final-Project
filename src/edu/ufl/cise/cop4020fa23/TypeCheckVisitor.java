@@ -90,7 +90,7 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitBooleanLitExpr(BooleanLitExpr booleanLitExpr, Object arg) throws PLCCompilerException {
-        String boolText = booleanLitExpr.getText();
+        /*String boolText = booleanLitExpr.getText();
 
         boolean boolValue;
         if (boolText.equalsIgnoreCase("true")) {
@@ -101,6 +101,9 @@ public class TypeCheckVisitor implements ASTVisitor {
             throw new PLCCompilerException("Invalid boolean literal: " + boolText);
         }
 
+        return Type.BOOLEAN;*/
+
+        booleanLitExpr.setType(Type.BOOLEAN);
         return Type.BOOLEAN;
     }
 
