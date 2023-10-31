@@ -11,6 +11,7 @@ import edu.ufl.cise.cop4020fa23.exceptions.SyntaxException;
 
 public class TypeCheckVisitor implements ASTVisitor {
     private SymbolTable symbolTable = new SymbolTable();
+    Program root;
 
     @Override
     public Object visitAssignmentStatement(AssignmentStatement assignmentStatement, Object arg) throws PLCCompilerException {
@@ -349,7 +350,7 @@ public class TypeCheckVisitor implements ASTVisitor {
     public Object visitProgram(Program program, Object arg) throws PLCCompilerException {
         /*program.getBlock().visit(this, arg);
         return null;*/
-
+        root = program;
         Type type = Type.kind2type(program.getTypeToken().kind());
         program.setType(type);
         symbolTable.enterScope();
