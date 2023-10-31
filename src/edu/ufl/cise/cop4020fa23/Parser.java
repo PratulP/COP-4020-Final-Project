@@ -13,6 +13,7 @@ import edu.ufl.cise.cop4020fa23.ast.*;
 import edu.ufl.cise.cop4020fa23.exceptions.LexicalException;
 import edu.ufl.cise.cop4020fa23.exceptions.PLCCompilerException;
 import edu.ufl.cise.cop4020fa23.exceptions.SyntaxException;
+import edu.ufl.cise.cop4020fa23.exceptions.TypeCheckException;
 
 import static edu.ufl.cise.cop4020fa23.Kind.*;
 
@@ -179,7 +180,7 @@ public class Parser implements IParser {
                     type = Type.VOID;
                     match(IDENT);
                 } else {
-                    throw new SyntaxException("Expected a valid type");
+                    throw new TypeCheckException("Expected a valid type");
                 }
                 break;
             case RES_boolean:
@@ -187,7 +188,7 @@ public class Parser implements IParser {
                 match(RES_boolean);
                 break;
             default:
-                throw new SyntaxException("Expected a valid type");
+                throw new TypeCheckException("Expected a valid type");
         }
 
         return type;
