@@ -4,6 +4,7 @@ import edu.ufl.cise.cop4020fa23.ast.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.Stack;
 import edu.ufl.cise.cop4020fa23.exceptions.PLCCompilerException;
 import edu.ufl.cise.cop4020fa23.exceptions.TypeCheckException;
 import edu.ufl.cise.cop4020fa23.exceptions.LexicalException;
@@ -11,57 +12,79 @@ import edu.ufl.cise.cop4020fa23.exceptions.SyntaxException;
 
 public class TypeCheckVisitor implements ASTVisitor {
     private SymbolTable symbolTable = new SymbolTable();
+    private Stack<SymbolTable> symbolTableStack = new Stack<>();
     Program root;
 
     @Override
     public Object visitAssignmentStatement(AssignmentStatement assignmentStatement, Object arg) throws PLCCompilerException {
         symbolTable.enterScope();
 
-        Expr e = assignmentStatement.getE();
-
         LValue lValue = assignmentStatement.getlValue();
-
         Type lValueType = (Type) lValue.visit(this, arg);
+        Type exprType = (Type) assignmentStatement.getE().visit(this, arg);
 
-        Type exprType = (Type) e.visit(this, arg);
+        symbolTable.leaveScope();
+
+        if (lValueType == null) {
+            throw new TypeCheckException("Undefined identifier: " + lValue.getName());
+        }
 
         if (lValueType == Type.IMAGE) {
             if (exprType != Type.PIXEL && exprType != Type.INT) {
-                throw new PLCCompilerException("Assignment type mismatch");
+                throw new TypeCheckException("Assignment type mismatch");
             }
         } else if (lValueType != exprType) {
-            throw new PLCCompilerException("Assignment type mismatch");
+            throw new TypeCheckException("Assignment type mismatch");
         }
 
-        symbolTable.leaveScope();
         return null;
     }
 
 
     @Override
     public Object visitBinaryExpr(BinaryExpr binaryExpr, Object arg) throws PLCCompilerException {
-
-        int left = (int)binaryExpr.getLeftExpr().visit(this, arg);
-        int right = (int)binaryExpr.getRightExpr().visit(this,arg);
+        Type leftType = (Type) binaryExpr.getLeftExpr().visit(this, arg);
+        Type rightType = (Type) binaryExpr.getRightExpr().visit(this, arg);
         Kind opKind = binaryExpr.getOpKind();
-        int val = switch(opKind) {
-            case PLUS -> left + right;
-            case MINUS -> left - right;
-            case TIMES -> left * right;
-            case DIV -> left / right;
-            default -> throw new PLCCompilerException();
-        };
-        return val;
+
+        if (leftType == null) {
+            throw new TypeCheckException("Undefined identifier: " + binaryExpr.getLeftExpr());
+        }
+
+        if (rightType == null) {
+            throw new TypeCheckException("Undefined identifier: " + binaryExpr.getRightExpr());
+        }
+
+        if (opKind == Kind.PLUS || opKind == Kind.MINUS || opKind == Kind.TIMES || opKind == Kind.DIV) {
+            if (leftType != Type.INT || rightType != Type.INT) {
+                throw new TypeCheckException("Arithmetic operation type mismatch");
+            }
+            return Type.INT;
+        } else if (opKind == Kind.EQ || opKind == Kind.LT || opKind == Kind.LE || opKind == Kind.GT || opKind == Kind.GE) {
+            if (leftType != rightType) {
+                throw new TypeCheckException("Comparison operation type mismatch");
+            }
+            return Type.BOOLEAN;
+        } else if (opKind == Kind.AND || opKind == Kind.OR) {
+            if (leftType != Type.BOOLEAN || rightType != Type.BOOLEAN) {
+                throw new TypeCheckException("Logical operation type mismatch");
+            }
+            return Type.BOOLEAN;
+        } else {
+            throw new TypeCheckException("Unsupported binary operation: " + opKind);
+        }
     }
 
     @Override
     public Object visitBlock(Block block, Object arg) throws PLCCompilerException {
-        symbolTable.enterScope();
+        symbolTableStack.push(new SymbolTable()); 
+
         for (Block.BlockElem elem : block.getElems()) {
             elem.visit(this, arg);
         }
-        symbolTable.leaveScope();
-        //return null;
+
+        symbolTableStack.pop(); 
+
         return block;
     }
 
@@ -70,15 +93,15 @@ public class TypeCheckVisitor implements ASTVisitor {
         String boolText = booleanLitExpr.getText();
 
         boolean boolValue;
-        if (boolText.equals("true")) {
+        if (boolText.equalsIgnoreCase("true")) {
             boolValue = true;
-        } else if (boolText.equals("false")) {
+        } else if (boolText.equalsIgnoreCase("false")) {
             boolValue = false;
         } else {
             throw new PLCCompilerException("Invalid boolean literal: " + boolText);
         }
 
-        return boolValue;
+        return Type.BOOLEAN;
     }
 
     @Override
@@ -164,7 +187,7 @@ public class TypeCheckVisitor implements ASTVisitor {
 
         if (initializer == null) {
             Type declaredType = nameDef.getType();
-            if (declaredType != Type.INT && declaredType != Type.BOOLEAN && declaredType != Type.STRING) {
+            if (declaredType != Type.INT && declaredType != Type.BOOLEAN && declaredType != Type.STRING && declaredType != Type.IMAGE && declaredType != Type.PIXEL) {
                 throw new PLCCompilerException("Invalid type for declaration: " + declaredType);
             }
         } else {
@@ -172,11 +195,30 @@ public class TypeCheckVisitor implements ASTVisitor {
             Type initializedType = (Type) initializer.visit(this, arg);
 
             if (declaredType != initializedType) {
-                throw new PLCCompilerException("Type mismatch in declaration");
+                throw new TypeCheckException("Type mismatch in declaration");
             }
         }
 
-        symbolTable.insert(nameDef);
+        Dimension dimension = nameDef.getDimension();
+        if (dimension != null) {
+            Type declaredType = nameDef.getType();
+
+            if (declaredType != Type.IMAGE && declaredType != Type.PIXEL) {
+                throw new PLCCompilerException("Invalid type for declaration with dimensions: " + declaredType);
+            }
+
+            dimension.visit(this, arg);
+
+            Type widthType = dimension.getWidth().getType();
+            Type heightType = dimension.getHeight().getType();
+
+            if (widthType != Type.INT || heightType != Type.INT) {
+                throw new PLCCompilerException("Dimension width and height must be of type INT");
+            }
+        }
+
+        SymbolTable currentScope = symbolTableStack.peek();
+        currentScope.insert(nameDef);
 
         return null;
     }
@@ -191,7 +233,6 @@ public class TypeCheckVisitor implements ASTVisitor {
         }
 
         return dimension;
-       // return null;
     }
 
     @Override
@@ -214,7 +255,7 @@ public class TypeCheckVisitor implements ASTVisitor {
         Type blueType = (Type) expandedPixelExpr.getBlue().visit(this, arg);
 
         if (redType != Type.PIXEL || greenType != Type.PIXEL || blueType != Type.PIXEL) {
-            throw new PLCCompilerException("ExpandedPixelExpr components must have type PIXEL");
+            throw new TypeCheckException("ExpandedPixelExpr components must have type PIXEL");
         }
 
         return Type.PIXEL;
@@ -236,9 +277,8 @@ public class TypeCheckVisitor implements ASTVisitor {
     @Override
     public Object visitIdentExpr(IdentExpr identExpr, Object arg) throws PLCCompilerException {
         if (identExpr.getNameDef() == null) {
-            throw new PLCCompilerException("Undefined identifier: " + identExpr.getName());
+            throw new TypeCheckException("Undefined identifier: " + identExpr.getName());
         }
-
         return identExpr.getNameDef().getType();
     }
 
@@ -258,14 +298,14 @@ public class TypeCheckVisitor implements ASTVisitor {
     @Override
     public Object visitLValue(LValue lValue, Object arg) throws PLCCompilerException {
         if (lValue.getNameDef() == null) {
-            throw new PLCCompilerException("Undefined identifier: " + lValue.getName());
+            return null;
         }
 
         if (lValue.getPixelSelector() != null) {
             lValue.getPixelSelector().visit(this, arg);
 
             if (lValue.getVarType() != Type.IMAGE) {
-                throw new PLCCompilerException("Pixel selector can only be used with IMAGE type");
+                throw new TypeCheckException("Pixel selector can only be used with IMAGE type");
             }
         }
 
@@ -273,7 +313,7 @@ public class TypeCheckVisitor implements ASTVisitor {
             lValue.getChannelSelector().visit(this, arg);
 
             if (lValue.getVarType() != Type.PIXEL && lValue.getVarType() != Type.IMAGE) {
-                throw new PLCCompilerException("Channel selector can only be used with PIXEL or IMAGE type");
+                throw new TypeCheckException("Channel selector can only be used with PIXEL or IMAGE type");
             }
         }
 
@@ -281,10 +321,9 @@ public class TypeCheckVisitor implements ASTVisitor {
     }
     @Override
     public Object visitNameDef(NameDef nameDef, Object arg) throws PLCCompilerException {
-
         Type declaredType = nameDef.getType();
 
-        if (declaredType != Type.INT && declaredType != Type.BOOLEAN && declaredType != Type.STRING) {
+        if (declaredType != Type.INT && declaredType != Type.BOOLEAN && declaredType != Type.STRING && declaredType != Type.IMAGE && declaredType != Type.PIXEL) {
             throw new PLCCompilerException("Invalid type for name definition: " + declaredType);
         }
 
@@ -302,6 +341,7 @@ public class TypeCheckVisitor implements ASTVisitor {
 
         return null;
     }
+
 
     @Override
     public Object visitNumLitExpr(NumLitExpr numLitExpr, Object arg) throws PLCCompilerException {
@@ -348,18 +388,16 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitProgram(Program program, Object arg) throws PLCCompilerException {
-        /*program.getBlock().visit(this, arg);
-        return null;*/
         root = program;
         Type type = Type.kind2type(program.getTypeToken().kind());
         program.setType(type);
-        symbolTable.enterScope();
-        List<NameDef> params = program.getParams();
-        for (NameDef param : params) {
-            param.visit(this, arg);
-        }
+        symbolTableStack.clear(); 
+        symbolTableStack.push(new SymbolTable()); 
+        
+        
         program.getBlock().visit(this, arg);
-        symbolTable.leaveScope();
+        
+        symbolTableStack.pop(); 
         return type;
     }
 
@@ -424,19 +462,13 @@ public class TypeCheckVisitor implements ASTVisitor {
     }
     @Override
     public Object visitWriteStatement(WriteStatement writeStatement, Object arg) throws PLCCompilerException {
-
-        writeStatement.getExpr().visit(this, arg);
-
-
-        if (writeStatement.getExpr().getType() != Type.INT
-                && writeStatement.getExpr().getType() != Type.STRING
-                && writeStatement.getExpr().getType() != Type.BOOLEAN) {
-            throw new PLCCompilerException("Invalid type for write statement: " + writeStatement.getExpr().getType());
+        Type exprType = (Type) writeStatement.getExpr().visit(this, null);
+        if (exprType != Type.INT && exprType != Type.STRING && exprType != Type.BOOLEAN) {
+            throw new PLCCompilerException("Invalid type for write statement: " + exprType);
         }
-
-        //return null;
-        return writeStatement;
+        return null;
     }
 
 
 }
+
