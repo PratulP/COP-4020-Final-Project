@@ -121,34 +121,41 @@ public class CodeGenerator implements ASTVisitor {
     }
 
 
+    
     @Override
     public Object visitBinaryExpr(BinaryExpr binaryExpr, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder)arg;
-        if (sb == null) {
-            throw new IllegalStateException("StringBuilder object is null in visitBinaryExpr");
-        }
 
         if (binaryExpr.getOpKind() == Kind.EXP) {
-            Type leftType = (Type)binaryExpr.getLeftExpr().visit(this, sb);
-            Type rightType = (Type)binaryExpr.getRightExpr().visit(this, sb);
-
-            if (leftType != Type.INT || rightType != Type.INT) {
-                throw new TypeCheckException("EXP operation requires both operands to be of type INT");
-            }
-
             sb.append("(int)Math.pow(");
             binaryExpr.getLeftExpr().visit(this, sb);
             sb.append(", ");
             binaryExpr.getRightExpr().visit(this, sb);
             sb.append(")");
         } else {
-            binaryExpr.getLeftExpr().visit(this, sb);
+            if (binaryExpr.getLeftExpr() instanceof BinaryExpr) {
+                sb.append("(");
+                binaryExpr.getLeftExpr().visit(this, sb);
+                sb.append(")");
+            } else {
+                binaryExpr.getLeftExpr().visit(this, sb);
+            }
+
             sb.append(" ").append(binaryExpr.getOp().text()).append(" ");
-            binaryExpr.getRightExpr().visit(this, sb);
+
+            if (binaryExpr.getRightExpr() instanceof BinaryExpr) {
+                sb.append("(");
+                binaryExpr.getRightExpr().visit(this, sb);
+                sb.append(")");
+            } else {
+                binaryExpr.getRightExpr().visit(this, sb);
+            }
         }
 
         return null;
     }
+
+
 
 
 
