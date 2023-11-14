@@ -54,52 +54,43 @@ public class TypeCheckVisitor implements ASTVisitor {
         Type rightType = (Type) binaryExpr.getRightExpr().visit(this, arg);
         Kind opKind = binaryExpr.getOpKind();
 
-        if (leftType == null) {
-            throw new TypeCheckException("Undefined identifier: " + binaryExpr.getLeftExpr());
+        if (leftType == null || rightType == null) {
+            throw new TypeCheckException("Undefined identifier in binary expression");
         }
 
-        if (rightType == null) {
-            throw new TypeCheckException("Undefined identifier: " + binaryExpr.getRightExpr());
-        }
-
-        if (opKind == Kind.PLUS) {
-            if (leftType == Type.STRING || rightType == Type.STRING) {
-                binaryExpr.setType(Type.STRING); 
-                return Type.STRING;
-            }
-            if (leftType == Type.INT && rightType == Type.INT) {
-                binaryExpr.setType(Type.INT); 
+        switch (opKind) {
+            case PLUS, MINUS, TIMES, DIV -> {
+                if (leftType != Type.INT || rightType != Type.INT) {
+                    throw new TypeCheckException("Arithmetic operations require INT operands");
+                }
+                binaryExpr.setType(Type.INT);
                 return Type.INT;
             }
-            throw new TypeCheckException("Invalid types for + operation");
-        } else if (opKind == Kind.MINUS || opKind == Kind.TIMES || opKind == Kind.DIV) {
-            if (leftType != Type.INT || rightType != Type.INT) {
-                throw new TypeCheckException("Arithmetic operation type mismatch");
+            case MOD -> {
+                if (leftType != Type.INT || rightType != Type.INT) {
+                    throw new TypeCheckException("MOD operation requires INT operands");
+                }
+                binaryExpr.setType(Type.INT);
+                return Type.INT;
             }
-            binaryExpr.setType(Type.INT);
-            return Type.INT;
-        } else if (opKind == Kind.EQ || opKind == Kind.LT || opKind == Kind.LE || opKind == Kind.GT || opKind == Kind.GE) {
-            if (leftType != rightType) {
-                throw new TypeCheckException("Comparison operation type mismatch");
+            case EQ, LT, LE, GT, GE -> {
+                if (leftType != rightType) {
+                    throw new TypeCheckException("Comparison operation type mismatch");
+                }
+                binaryExpr.setType(Type.BOOLEAN);
+                return Type.BOOLEAN;
             }
-            binaryExpr.setType(Type.BOOLEAN);
-            return Type.BOOLEAN;
-        } else if (opKind == Kind.AND || opKind == Kind.OR) {
-            if (leftType != Type.BOOLEAN || rightType != Type.BOOLEAN) {
-                throw new TypeCheckException("Logical operation type mismatch");
+            case AND, OR -> {
+                if (leftType != Type.BOOLEAN || rightType != Type.BOOLEAN) {
+                    throw new TypeCheckException("Logical operation type mismatch");
+                }
+                binaryExpr.setType(Type.BOOLEAN);
+                return Type.BOOLEAN;
             }
-            binaryExpr.setType(Type.BOOLEAN); 
-            return Type.BOOLEAN;
-        } else if (opKind == Kind.EXP) {
-            if (leftType != Type.INT || rightType != Type.INT) {
-                throw new TypeCheckException("Both operands of EXP operation must be of type INT");
-            }
-            binaryExpr.setType(Type.INT); 
-            return Type.INT;
-        } else {
-            throw new TypeCheckException("Unsupported binary operation: " + opKind);
+            default -> throw new TypeCheckException("Unsupported binary operation: " + opKind);
         }
     }
+
 
     @Override
     public Object visitBlock(Block block, Object arg) throws PLCCompilerException {
