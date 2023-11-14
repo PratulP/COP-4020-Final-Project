@@ -119,17 +119,36 @@ public class CodeGenerator implements ASTVisitor {
         System.out.println("Debug: Resultant Type of ConditionalExpr: " + conditionalExpr.getType());
         return null;
     }
-
-
     
     @Override
     public Object visitBinaryExpr(BinaryExpr binaryExpr, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder)arg;
+        if (sb == null) {
+            throw new IllegalStateException("StringBuilder object is null in visitBinaryExpr");
+        }
 
         if (binaryExpr.getOpKind() == Kind.EXP) {
             sb.append("(int)Math.pow(");
             binaryExpr.getLeftExpr().visit(this, sb);
             sb.append(", ");
+            binaryExpr.getRightExpr().visit(this, sb);
+            sb.append(")");
+        } else if (binaryExpr.getOpKind() == Kind.PLUS &&
+                   binaryExpr.getLeftExpr().getType() == Type.STRING &&
+                   binaryExpr.getRightExpr().getType() == Type.STRING) {
+            binaryExpr.getLeftExpr().visit(this, sb);
+            sb.append(" + ");
+            if (binaryExpr.getRightExpr() instanceof StringLitExpr) {
+                StringLitExpr rightExpr = (StringLitExpr) binaryExpr.getRightExpr();
+                sb.append(rightExpr.getText());
+            } else {
+                binaryExpr.getRightExpr().visit(this, sb);
+            }
+        } else if (binaryExpr.getOpKind() == Kind.EQ &&
+                   binaryExpr.getLeftExpr().getType() == Type.STRING &&
+                   binaryExpr.getRightExpr().getType() == Type.STRING) {
+            binaryExpr.getLeftExpr().visit(this, sb);
+            sb.append(".equals(");
             binaryExpr.getRightExpr().visit(this, sb);
             sb.append(")");
         } else {
@@ -140,9 +159,7 @@ public class CodeGenerator implements ASTVisitor {
             } else {
                 binaryExpr.getLeftExpr().visit(this, sb);
             }
-
             sb.append(" ").append(binaryExpr.getOp().text()).append(" ");
-
             if (binaryExpr.getRightExpr() instanceof BinaryExpr) {
                 sb.append("(");
                 binaryExpr.getRightExpr().visit(this, sb);
@@ -154,10 +171,6 @@ public class CodeGenerator implements ASTVisitor {
 
         return null;
     }
-
-
-
-
 
     @Override
     public Object visitConstExpr(ConstExpr constExpr, Object arg) throws PLCCompilerException {
