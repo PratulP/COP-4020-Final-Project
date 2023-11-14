@@ -87,6 +87,13 @@ public class TypeCheckVisitor implements ASTVisitor {
                 binaryExpr.setType(Type.BOOLEAN);
                 return Type.BOOLEAN;
             }
+            case EXP -> {
+                if (leftType != Type.INT || rightType != Type.INT) {
+                    throw new TypeCheckException("EXP operation requires INT operands");
+                }
+                binaryExpr.setType(Type.INT);
+                return Type.INT;
+            }
             default -> throw new TypeCheckException("Unsupported binary operation: " + opKind);
         }
     }
@@ -206,9 +213,7 @@ public class TypeCheckVisitor implements ASTVisitor {
     public Object visitDeclaration(Declaration declaration, Object arg) throws PLCCompilerException {
         NameDef nameDef = declaration.getNameDef();
 
-        System.out.println("Visiting Declaration: " + nameDef.getName() + ", Type: " + nameDef.getType() + ", Scope Level: " + symbolTableStack.size());
         String name = nameDef.getName();
-
         if (declaredNamesStack.peek().contains(name)) {
             throw new TypeCheckException("Variable already declared in this scope: " + name);
         }
@@ -221,7 +226,6 @@ public class TypeCheckVisitor implements ASTVisitor {
         if (initializer != null) {
             Type initializedType = (Type) initializer.visit(this, arg);
             if (!(declaredType == Type.IMAGE && initializedType == Type.STRING) && declaredType != initializedType) {
-                System.out.println("Type mismatch detected in declaration. Declared Type: " + declaredType + ", Initializer Type: " + initializedType);
                 throw new TypeCheckException("Type mismatch in declaration");
             }
         }
