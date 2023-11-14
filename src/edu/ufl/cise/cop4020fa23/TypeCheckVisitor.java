@@ -1,6 +1,7 @@
 package edu.ufl.cise.cop4020fa23;
 
 import edu.ufl.cise.cop4020fa23.ast.*;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -89,6 +90,12 @@ public class TypeCheckVisitor implements ASTVisitor {
             }
             binaryExpr.setType(Type.BOOLEAN); 
             return Type.BOOLEAN;
+        } else if (opKind == Kind.EXP) {
+            if (leftType != Type.INT || rightType != Type.INT) {
+                throw new TypeCheckException("Both operands of EXP operation must be of type INT");
+            }
+            binaryExpr.setType(Type.INT); 
+            return Type.INT;
         } else {
             throw new TypeCheckException("Unsupported binary operation: " + opKind);
         }
