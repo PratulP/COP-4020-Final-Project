@@ -1,6 +1,13 @@
 package edu.ufl.cise.cop4020fa23;
 
 import edu.ufl.cise.cop4020fa23.ast.*;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Stack;
+import edu.ufl.cise.cop4020fa23.ast.*;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -9,58 +16,57 @@ import edu.ufl.cise.cop4020fa23.exceptions.PLCCompilerException;
 import edu.ufl.cise.cop4020fa23.exceptions.TypeCheckException;
 import edu.ufl.cise.cop4020fa23.exceptions.LexicalException;
 import edu.ufl.cise.cop4020fa23.exceptions.SyntaxException;
+import java.util.Set;
+import java.util.HashSet;
 
 public class CodeGenerator implements ASTVisitor {
-
-	private String packageName;
+    private String packageName;
     private final SymbolTable symbolTable;
-    Program root;
+    private Program root;
     private Stack<SymbolTable> symbolTableStack = new Stack<>();
-    public CodeGenerator(String packageName, SymbolTable symbolTable) {
-        this.packageName = packageName;
-        this.symbolTable = symbolTable;
+    private int uniqueCounter = 1;
+    private Map<String, String> parameterNames = new HashMap<>();
+
+    public CodeGenerator(String packageName) {
+        this.packageName = (packageName == null || packageName.equals("defaultPackageName") || packageName.isEmpty()) ? null : packageName;
+        this.symbolTable = new SymbolTable();
     }
 
-    public CodeGenerator() {
-        this.packageName = "defaultPackageName"; 
-        this.symbolTable = new SymbolTable();    
-    }
-
-
+   
     @Override
     public Object visitProgram(Program program, Object arg) throws PLCCompilerException {
-        StringBuilder sb;
-        if (arg instanceof StringBuilder) {
-            sb = (StringBuilder) arg;
-        } else {
-            sb = new StringBuilder();
-            System.out.println("Debug: Creating a new StringBuilder for program code generation");
-        }
+        StringBuilder sb = new StringBuilder();
 
-        System.out.println("Debug: Visiting Program - Name: " + program.getName() + ", Type: " + program.getType());
-        sb.append("package ").append(packageName).append(";\n");
-        sb.append("public class ").append(program.getName()).append(" {\n");
-        
-        if ("f".equals(program.getName()) && Type.VOID.equals(program.getType())) {
-            sb.append("public static void main(String[] args) {\n");
-            sb.append("    new ").append(program.getName()).append("().f();\n");
-            sb.append("}\n");
-        }
+        sb.append("package edu.ufl.cise.cop4020fa23;\n");
 
-        sb.append("public ").append(program.getType().toString().toLowerCase()).append(" f(");
-        for (int i = 0; i < program.getParams().size(); i++) {
-            System.out.println("Debug: Visiting Parameter " + (i + 1) + ": " + program.getParams().get(i).getName());
-            program.getParams().get(i).visit(this, sb);
-            if (i < program.getParams().size() - 1) {
+        String className = program.getName();
+        String fullyQualifiedName = (this.packageName != null && !this.packageName.isEmpty()) 
+                                    ? this.packageName + "." + className 
+                                    : className;
+
+        sb.append("import edu.ufl.cise.cop4020fa23.ConsoleIO;\n");
+
+        sb.append("public class ").append(fullyQualifiedName).append(" {\n");
+
+        String returnType = getJavaType(program.getType());
+        sb.append("    public static ").append(returnType).append(" apply(");
+
+        List<NameDef> params = program.getParams();
+        for (int i = 0; i < params.size(); i++) {
+            NameDef param = params.get(i);
+            param.visit(this, sb);
+            if (i < params.size() - 1) {
                 sb.append(", ");
             }
         }
         sb.append(") {\n");
+
         program.getBlock().visit(this, sb);
+
+        sb.append("    }\n");
         sb.append("}\n");
-        sb.append("}\n");
-        System.out.println("Debug: Finished Visiting Program - Generated Code:\n" + sb.toString());
-        return null;
+
+        return sb.toString();
     }
 
 
@@ -75,26 +81,11 @@ public class CodeGenerator implements ASTVisitor {
     }
 
 
-    @Override
-    public Object visitNameDef(NameDef nameDef, Object arg) throws PLCCompilerException {
-        StringBuilder sb = (StringBuilder) arg;
-        Type type = Type.kind2type(nameDef.getTypeToken().kind());
-        String javaType = switch (type) {
-            case INT -> "int";
-            case BOOLEAN -> "boolean";
-            case STRING -> "String";
-            default -> throw new UnsupportedOperationException("Unsupported type: " + type);
-        };
-        System.out.println("Debug: Visiting NameDef - Name: " + nameDef.getIdentToken().text() + ", Type: " + javaType);
-        sb.append(javaType).append(" ").append(nameDef.getIdentToken().text());
-        return null;
-    }
+    
 
 
-    @Override
     public Object visitDeclaration(Declaration declaration, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
-        System.out.println("Debug: Visiting Declaration - Name: " + declaration.getNameDef().getName());
         declaration.getNameDef().visit(this, sb);
         if (declaration.getInitializer() != null) {
             sb.append(" = ");
@@ -103,6 +94,8 @@ public class CodeGenerator implements ASTVisitor {
         sb.append(";\n");
         return null;
     }
+
+
 
 
     @Override
@@ -130,20 +123,33 @@ public class CodeGenerator implements ASTVisitor {
 
     @Override
     public Object visitBinaryExpr(BinaryExpr binaryExpr, Object arg) throws PLCCompilerException {
-        StringBuilder sb = (StringBuilder) arg;
-        System.out.println("Debug: Visiting BinaryExpr - Operator: " + binaryExpr.getOp().text());
-        
-        System.out.println("Debug: Left Expression of BinaryExpr");
-        Type leftType = (Type) binaryExpr.getLeftExpr().visit(this, sb);
-        sb.append(" ").append(binaryExpr.getOp().text()).append(" ");
+        StringBuilder sb = (StringBuilder)arg;
+        if (sb == null) {
+            throw new IllegalStateException("StringBuilder object is null in visitBinaryExpr");
+        }
 
-        System.out.println("Debug: Right Expression of BinaryExpr");
-        Type rightType = (Type) binaryExpr.getRightExpr().visit(this, sb);
-        sb.append(")");
-        
-        System.out.println("Debug: Resultant Type of BinaryExpr: " + binaryExpr.getType());
+        if (binaryExpr.getOpKind() == Kind.EXP) {
+            Type leftType = (Type)binaryExpr.getLeftExpr().visit(this, sb);
+            Type rightType = (Type)binaryExpr.getRightExpr().visit(this, sb);
+
+            if (leftType != Type.INT || rightType != Type.INT) {
+                throw new TypeCheckException("EXP operation requires both operands to be of type INT");
+            }
+
+            sb.append("(int)Math.pow(");
+            binaryExpr.getLeftExpr().visit(this, sb);
+            sb.append(", ");
+            binaryExpr.getRightExpr().visit(this, sb);
+            sb.append(")");
+        } else {
+            binaryExpr.getLeftExpr().visit(this, sb);
+            sb.append(" ").append(binaryExpr.getOp().text()).append(" ");
+            binaryExpr.getRightExpr().visit(this, sb);
+        }
+
         return null;
     }
+
 
 
     @Override
@@ -184,58 +190,75 @@ public class CodeGenerator implements ASTVisitor {
         sb.append(numLitExpr.getText());
         return null;
     }
+    
+   
+    
+    private String getJavaType(Type type) {
+        return switch (type) {
+            case INT -> "int";
+            case BOOLEAN -> "boolean";
+            case STRING -> "String";
+            case VOID -> "void"; 
+            default -> throw new UnsupportedOperationException("Unsupported type: " + type);
+        };
+    }
 
+
+    @Override
+    public Object visitNameDef(NameDef nameDef, Object arg) throws PLCCompilerException {
+        StringBuilder sb = (StringBuilder) arg;
+        String javaType = getJavaType(nameDef.getType());
+        String originalName = nameDef.getIdentToken().text();
+        String uniqueName = getUniqueName(originalName);
+
+        parameterNames.put(originalName, uniqueName);
+
+        sb.append(javaType).append(" ").append(uniqueName);
+        return null;
+    }
 
     @Override
     public Object visitIdentExpr(IdentExpr identExpr, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
-        String identifierName = identExpr.getName();
-        System.out.println("Debug: Visiting IdentExpr - Identifier: " + identifierName);
-        boolean identifierFound = false;
-
-        for (int i = symbolTableStack.size() - 1; i >= 0; i--) {
-            SymbolTable table = symbolTableStack.get(i);
-            if (table.table.containsKey(identifierName)) {
-                sb.append(identifierName);
-                identifierFound = true;
-                break;
-            }
+        if (sb == null) {
+            throw new IllegalStateException("StringBuilder object is null in visitIdentExpr");
         }
 
-        if (!identifierFound && root != null && root.getParams() != null) {
-            for (NameDef param : root.getParams()) {
-                if (param.getName().equals(identifierName)) {
-                    sb.append(identifierName);
-                    identifierFound = true;
-                    break;
-                }
-            }
-        }
+        String originalName = identExpr.getName();
+        String identifierName = parameterNames.getOrDefault(originalName, getUniqueName(originalName));
 
-        if (!identifierFound) {
-            sb.append(identifierName);
-        }
-
+        sb.append(identifierName);
         return null;
+    }
+
+
+    private String getUniqueName(String name) {
+        if (!parameterNames.containsKey(name)) {
+            return name + "_" + uniqueCounter++;
+        }
+        return parameterNames.get(name);
     }
 
     @Override
     public Object visitBooleanLitExpr(BooleanLitExpr booleanLitExpr, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
-        System.out.println("Debug: Visiting BooleanLitExpr - Value: " + booleanLitExpr.getText());
-        sb.append(booleanLitExpr.getText());
+        String literalValue = booleanLitExpr.getText().equals("TRUE") ? "true" : "false";
+        System.out.println("Debug: Visiting BooleanLitExpr - Value: " + literalValue);
+        sb.append(literalValue);
         return null;
     }
+
+
 
     @Override
     public Object visitWriteStatement(WriteStatement writeStatement, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
-        System.out.println("Debug: Visiting WriteStatement");
-        sb.append("System.out.println(");
+        sb.append("ConsoleIO.write(");
         writeStatement.getExpr().visit(this, sb);
         sb.append(");\n");
         return null;
     }
+
 
     @Override
     public Object visitBlockStatement(StatementBlock statementBlock, Object arg) throws PLCCompilerException {
@@ -248,12 +271,17 @@ public class CodeGenerator implements ASTVisitor {
     @Override
     public Object visitReturnStatement(ReturnStatement returnStatement, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
-        System.out.println("Debug: Visiting ReturnStatement");
+        if (sb == null) {
+            throw new IllegalStateException("StringBuilder object is null in visitReturnStatement");
+        }
+
         sb.append("return ");
         returnStatement.getE().visit(this, sb);
         sb.append(";\n");
         return null;
     }
+
+
 
     @Override
     public Object visitAssignmentStatement(AssignmentStatement assignmentStatement, Object arg) throws PLCCompilerException {
