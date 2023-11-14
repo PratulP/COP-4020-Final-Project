@@ -17,6 +17,7 @@ public class TypeCheckVisitor implements ASTVisitor {
     private Set<String> declaredNames = new HashSet<>();
     private Stack<SymbolTable> symbolTableStack = new Stack<>();
     private Stack<Set<String>> declaredNamesStack = new Stack<>();
+    private Stack<Set<String>> scopeStack = new Stack<>();
     Program root;
     public TypeCheckVisitor() {
         declaredNamesStack = new Stack<>();
@@ -59,42 +60,48 @@ public class TypeCheckVisitor implements ASTVisitor {
         }
 
         switch (opKind) {
-            case PLUS, MINUS, TIMES, DIV -> {
+            case PLUS:
+                if (leftType == Type.STRING && rightType == Type.STRING) {
+                    binaryExpr.setType(Type.STRING);
+                    return Type.STRING;
+                } else if (leftType == Type.INT && rightType == Type.INT) {
+                    binaryExpr.setType(Type.INT);
+                    return Type.INT;
+                } else {
+                    throw new TypeCheckException("Type mismatch for 'PLUS' operation");
+                }
+            case MINUS, TIMES, DIV:
                 if (leftType != Type.INT || rightType != Type.INT) {
                     throw new TypeCheckException("Arithmetic operations require INT operands");
                 }
                 binaryExpr.setType(Type.INT);
                 return Type.INT;
-            }
-            case MOD -> {
+            case MOD:
                 if (leftType != Type.INT || rightType != Type.INT) {
                     throw new TypeCheckException("MOD operation requires INT operands");
                 }
                 binaryExpr.setType(Type.INT);
                 return Type.INT;
-            }
-            case EQ, LT, LE, GT, GE -> {
+            case EQ, LT, LE, GT, GE:
                 if (leftType != rightType) {
                     throw new TypeCheckException("Comparison operation type mismatch");
                 }
                 binaryExpr.setType(Type.BOOLEAN);
                 return Type.BOOLEAN;
-            }
-            case AND, OR -> {
+            case AND, OR:
                 if (leftType != Type.BOOLEAN || rightType != Type.BOOLEAN) {
                     throw new TypeCheckException("Logical operation type mismatch");
                 }
                 binaryExpr.setType(Type.BOOLEAN);
                 return Type.BOOLEAN;
-            }
-            case EXP -> {
+            case EXP:
                 if (leftType != Type.INT || rightType != Type.INT) {
                     throw new TypeCheckException("EXP operation requires INT operands");
                 }
                 binaryExpr.setType(Type.INT);
                 return Type.INT;
-            }
-            default -> throw new TypeCheckException("Unsupported binary operation: " + opKind);
+            default:
+                throw new TypeCheckException("Unsupported binary operation: " + opKind);
         }
     }
 
@@ -211,28 +218,38 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitDeclaration(Declaration declaration, Object arg) throws PLCCompilerException {
-        NameDef nameDef = declaration.getNameDef();
+        String varName = declaration.getNameDef().getName();
 
-        String name = nameDef.getName();
-        if (declaredNamesStack.peek().contains(name)) {
-            throw new TypeCheckException("Variable already declared in this scope: " + name);
+        if (scopeStack.isEmpty()) {
+            scopeStack.push(new HashSet<>());
         }
 
-        declaredNamesStack.peek().add(name);
-        symbolTableStack.peek().insert(nameDef);
+        Set<String> currentScope = scopeStack.peek();
+        if (currentScope.contains(varName)) {
+            throw new TypeCheckException("Variable already declared in this scope: " + varName);
+        }
+
+        currentScope.add(varName);
 
         Expr initializer = declaration.getInitializer();
-        Type declaredType = nameDef.getType();
         if (initializer != null) {
-            Type initializedType = (Type) initializer.visit(this, arg);
-            if (!(declaredType == Type.IMAGE && initializedType == Type.STRING) && declaredType != initializedType) {
-                throw new TypeCheckException("Type mismatch in declaration");
+            initializer.visit(this, arg);
+
+            Type initializerType = initializer.getType();
+
+            Type declaredType = declaration.getNameDef().getType();
+            if (declaredType != initializerType && !(declaredType == Type.IMAGE && initializerType == Type.STRING)) {
+                throw new TypeCheckException("Type of expression and declared type do not match");
             }
         }
 
-        if (nameDef.getDimension() != null) {
-            nameDef.getDimension().visit(this, arg);
+        if (declaration.getNameDef().getType() == Type.IMAGE) {
+            if (initializer == null && declaration.getNameDef().getDimension() == null) {
+                throw new TypeCheckException("Either initializer or dimensions are null when nameDef is an IMAGE");
+            }
         }
+
+        symbolTable.insert(declaration.getNameDef());
 
         return null;
     }
