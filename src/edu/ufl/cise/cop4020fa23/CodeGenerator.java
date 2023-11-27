@@ -2,6 +2,7 @@ package edu.ufl.cise.cop4020fa23;
 
 import edu.ufl.cise.cop4020fa23.ast.*;
 
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -184,24 +185,34 @@ public class CodeGenerator implements ASTVisitor {
     public Object visitUnaryExpr(UnaryExpr unaryExpr, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
         System.out.println("Debug: Visiting UnaryExpr - Operator: " + unaryExpr.getOp());
-        sb.append("(");
-        switch (unaryExpr.getOp()) {
-            case BANG -> sb.append("!");
-            case MINUS -> sb.append("-");
-            default -> throw new UnsupportedOperationException("Unsupported unary operator: " + unaryExpr.getOp());
+
+        if (unaryExpr.getOp() == Kind.MINUS) {
+            sb.append("(-("); 
+            unaryExpr.getExpr().visit(this, sb); 
+            sb.append("))"); 
+        } else {
+            
+            sb.append("(");
+            switch (unaryExpr.getOp()) {
+                case BANG -> sb.append("!");
+                default -> throw new UnsupportedOperationException("Unsupported unary operator: " + unaryExpr.getOp());
+            }
+            unaryExpr.getExpr().visit(this, sb);
+            sb.append(")");
         }
-        unaryExpr.getExpr().visit(this, sb);
-        sb.append(")");
+
         return null;
     }
+
 
     @Override
     public Object visitStringLitExpr(StringLitExpr stringLitExpr, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
-        System.out.println("Debug: Visiting StringLitExpr - Text: " + stringLitExpr.getText());
-        sb.append("\"").append(stringLitExpr.getText()).append("\"");
+        sb.append(stringLitExpr.getText()); 
         return null;
     }
+
+
 
     @Override
     public Object visitNumLitExpr(NumLitExpr numLitExpr, Object arg) throws PLCCompilerException {
@@ -274,7 +285,7 @@ public class CodeGenerator implements ASTVisitor {
     public Object visitWriteStatement(WriteStatement writeStatement, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
         sb.append("ConsoleIO.write(");
-        writeStatement.getExpr().visit(this, sb);
+        writeStatement.getExpr().visit(this, sb); 
         sb.append(");\n");
         return null;
     }
@@ -288,13 +299,8 @@ public class CodeGenerator implements ASTVisitor {
         return null;
     }
 
-    @Override
     public Object visitReturnStatement(ReturnStatement returnStatement, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
-        if (sb == null) {
-            throw new IllegalStateException("StringBuilder object is null in visitReturnStatement");
-        }
-
         sb.append("return ");
         returnStatement.getE().visit(this, sb);
         sb.append(";\n");
@@ -303,20 +309,12 @@ public class CodeGenerator implements ASTVisitor {
 
 
 
-    @Override
     public Object visitAssignmentStatement(AssignmentStatement assignmentStatement, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
-        System.out.println("Debug: Visiting AssignmentStatement");
-
-        System.out.println("Debug: LValue of AssignmentStatement");
-        Type lValueType = (Type) assignmentStatement.getlValue().visit(this, sb);
+        assignmentStatement.getlValue().visit(this, sb);
         sb.append(" = ");
-
-        System.out.println("Debug: Expression of AssignmentStatement");
-        Type exprType = (Type) assignmentStatement.getE().visit(this, sb);
+        assignmentStatement.getE().visit(this, sb);
         sb.append(";\n");
-
-        System.out.println("Debug: LValue Type: " + lValueType + ", Expression Type: " + exprType);
         return null;
     }
 
@@ -325,8 +323,8 @@ public class CodeGenerator implements ASTVisitor {
     @Override
     public Object visitLValue(LValue lValue, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
-        System.out.println("Debug: Visiting LValue - Name: " + lValue.getName());
-        sb.append(lValue.getName()); 
+        String uniqueName = getUniqueName(lValue.getName());
+        sb.append(uniqueName);
         return null;
     }
 
