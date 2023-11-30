@@ -39,13 +39,13 @@ public class CodeGenerator implements ASTVisitor {
         StringBuilder sb = new StringBuilder();
 
         sb.append("package edu.ufl.cise.cop4020fa23;\n");
+        sb.append("import java.awt.Color;\n");
+        sb.append("import edu.ufl.cise.cop4020fa23.runtime.ConsoleIO;\n"); 
 
         String className = program.getName();
         String fullyQualifiedName = (this.packageName != null && !this.packageName.isEmpty()) 
                                     ? this.packageName + "." + className 
                                     : className;
-
-        sb.append("import edu.ufl.cise.cop4020fa23.ConsoleIO;\n");
 
         sb.append("public class ").append(fullyQualifiedName).append(" {\n");
 
@@ -69,6 +69,7 @@ public class CodeGenerator implements ASTVisitor {
 
         return sb.toString();
     }
+
 
 
     @Override
@@ -176,16 +177,30 @@ public class CodeGenerator implements ASTVisitor {
     @Override
     public Object visitConstExpr(ConstExpr constExpr, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
-        //System.out.println("Debug: Visiting ConstExpr - Name: " + constExpr.getName());
-        //sb.append(constExpr.getName());
 
-        if (constExpr.getName().equals("Z")) {
-            sb.append("255");
-        } else {
-            sb.append("\"0x\" + Integer.toHexString(Color." + constExpr.getName() + ".getRGB())");
+        switch (constExpr.getName()) {
+            case "RED":
+                sb.append("Color.RED.getRGB()");
+                break;
+            case "GREEN":
+                sb.append("Color.GREEN.getRGB()");
+                break;
+            case "BLUE":
+                sb.append("Color.BLUE.getRGB()");
+                break;
+            case "PINK":
+                sb.append("Color.PINK.getRGB()");
+                break;
+            case "Z":
+                sb.append("255");
+                break;
+            default:
+                throw new PLCCompilerException("Undefined constant: " + constExpr.getName());
         }
         return null;
     }
+
+
 
     @Override
     public Object visitUnaryExpr(UnaryExpr unaryExpr, Object arg) throws PLCCompilerException {
@@ -299,12 +314,21 @@ public class CodeGenerator implements ASTVisitor {
     @Override
     public Object visitWriteStatement(WriteStatement writeStatement, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
-        sb.append("import edu.ufl.cise.cop4020fa23.runtime.ConsoleIO;\n");
+        Type exprType = writeStatement.getExpr().getType();
+
         sb.append("ConsoleIO.write(");
-        writeStatement.getExpr().visit(this, sb); 
+        if (exprType == Type.PIXEL) {
+            sb.append("\"0x\" + Integer.toHexString(");
+            writeStatement.getExpr().visit(this, sb);
+            sb.append(")");
+        } else {
+            writeStatement.getExpr().visit(this, sb);
+        }
         sb.append(");\n");
         return null;
     }
+
+
 
 
     @Override
@@ -497,5 +521,3 @@ public class CodeGenerator implements ASTVisitor {
         return null;
     }
 }
-
-
