@@ -62,43 +62,70 @@ public class TypeCheckVisitor implements ASTVisitor {
                 } else if (leftType == Type.INT && rightType == Type.INT) {
                     binaryExpr.setType(Type.INT);
                     return Type.INT;
+                } else if (leftType == Type.PIXEL && rightType == Type.PIXEL) {
+                    binaryExpr.setType(Type.PIXEL);
+                    return Type.PIXEL;
                 } else {
                     throw new TypeCheckException("Type mismatch for 'PLUS' operation");
                 }
-            case MINUS, TIMES, DIV:
+
+            case MINUS:
+            case TIMES:
                 if (leftType != Type.INT || rightType != Type.INT) {
                     throw new TypeCheckException("Arithmetic operations require INT operands");
                 }
                 binaryExpr.setType(Type.INT);
                 return Type.INT;
+
+            case DIV:
+                if (leftType == Type.IMAGE && rightType == Type.INT) {
+                    binaryExpr.setType(Type.IMAGE);
+                    return Type.IMAGE;
+                } else if (leftType == Type.INT && rightType == Type.INT) {
+                    binaryExpr.setType(Type.INT);
+                    return Type.INT;
+                } else {
+                    throw new TypeCheckException("Invalid operands for DIV operation");
+                }
+
             case MOD:
                 if (leftType != Type.INT || rightType != Type.INT) {
                     throw new TypeCheckException("MOD operation requires INT operands");
                 }
                 binaryExpr.setType(Type.INT);
                 return Type.INT;
-            case EQ, LT, LE, GT, GE:
+
+            case EQ:
+            case LT:
+            case LE:
+            case GT:
+            case GE:
                 if (leftType != rightType) {
                     throw new TypeCheckException("Comparison operation type mismatch");
                 }
                 binaryExpr.setType(Type.BOOLEAN);
                 return Type.BOOLEAN;
-            case AND, OR:
+
+            case AND:
+            case OR:
                 if (leftType != Type.BOOLEAN || rightType != Type.BOOLEAN) {
                     throw new TypeCheckException("Logical operation type mismatch");
                 }
                 binaryExpr.setType(Type.BOOLEAN);
                 return Type.BOOLEAN;
+
             case EXP:
                 if (leftType != Type.INT || rightType != Type.INT) {
                     throw new TypeCheckException("EXP operation requires INT operands");
                 }
                 binaryExpr.setType(Type.INT);
                 return Type.INT;
+
             default:
                 throw new TypeCheckException("Unsupported binary operation: " + opKind);
         }
     }
+
     
     @Override
     public Object visitBlock(Block block, Object arg) throws PLCCompilerException {
@@ -580,12 +607,9 @@ public class TypeCheckVisitor implements ASTVisitor {
     @Override
     public Object visitWriteStatement(WriteStatement writeStatement, Object arg) throws PLCCompilerException {
         Type exprType = (Type) writeStatement.getExpr().visit(this, null);
-        if (exprType != Type.INT && exprType != Type.STRING && exprType != Type.BOOLEAN) {
+        if (exprType != Type.INT && exprType != Type.STRING && exprType != Type.BOOLEAN && exprType != Type.PIXEL) {
             throw new PLCCompilerException("Invalid type for write statement: " + exprType);
         }
         return null;
     }
-
-
 }
-
