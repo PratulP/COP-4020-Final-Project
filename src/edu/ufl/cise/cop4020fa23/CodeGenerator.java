@@ -325,12 +325,16 @@ public class CodeGenerator implements ASTVisitor {
 
 
 
-    public Object visitAssignmentStatement(AssignmentStatement assignmentStatement, Object arg) throws PLCCompilerException {
+   public Object visitAssignmentStatement(AssignmentStatement assignmentStatement, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
         if (assignmentStatement.getlValue().getVarType() == Type.IMAGE) {
             if (assignmentStatement.getlValue().getVarType() == Type.PIXEL & assignmentStatement.getlValue().getChannelSelector() != null ) {
                 sb.append("import edu.ufl.cise.cop4020fa23.runtime.ImageOps;\n");
-                //PixelOps.setRed(L value, Expr)
+                sb.append("PixelOps.setRed(");
+                assignmentStatement.getlValue().visit(this,sb);
+                sb.append(", ");
+                assignmentStatement.getE().visit(this,sb);
+                sb.append(")");
             }
         } else {
             assignmentStatement.getlValue().visit(this, sb);
