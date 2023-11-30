@@ -16,11 +16,11 @@ public class Lexer implements ILexer {
     private Map<String, Kind> reservedWordsMap = new HashMap<>();
 
     public Lexer(String input) {
-        this.chars = (input + "\0").toCharArray(); 
+        this.chars = (input + "\0").toCharArray();
         this.pos = 0;
         this.startPos = 0;
         this.state = State.START;
-        this.line = 1;  
+        this.line = 1;
         this.column = 0;
         initializeReservedWords();
     }
@@ -60,25 +60,28 @@ public class Lexer implements ILexer {
         reservedWordsMap.put("FALSE", Kind.BOOLEAN_LIT);
     }
 
-
+    private boolean isIdentifierPart(char ch) {
+        return Character.isLetterOrDigit(ch) || ch == '_';
+    }
     @Override
     public IToken next() throws LexicalException {
         while (true) {
             char ch = chars[pos];
-            column++;  
 
             switch (state) {
                 case START:
                     startPos = pos;
+                    column++;
+
                     if (ch == '"') {
                         pos++;
-
                         while (chars[pos] != '"' && chars[pos] != '\0' && chars[pos] != '\n') {
                             pos++;
                         }
-                        
+
                         if (chars[pos] == '"') {
                             pos++;
+                            state = State.START;
                             return new Token(Kind.STRING_LIT, startPos, pos - startPos, chars, new SourceLocation(line, column));
                         } else if (chars[pos] == '\n') {
                             throw new LexicalException(new SourceLocation(line, column), "Unterminated string literal with newline");
@@ -87,41 +90,44 @@ public class Lexer implements ILexer {
                         }
                     }
 
-                    if (Character.isJavaIdentifierStart(ch)) {  
+                    if (Character.isJavaIdentifierStart(ch)) {
                         state = State.IN_IDENT;
-                        pos++;
-                        continue;  
-                    }
-                    if (Character.isDigit(ch)) {
-                        if (ch == '0') {
-                            state = State.HAVE_ZERO;
-                        } else {
-                            state = State.IN_NUM;
-                        }
                         pos++;
                         continue;
                     }
-                    switch (ch) 
+
+                    if (Character.isDigit(ch)) {
+                        if (ch == '0') {
+                            pos++;
+                            state = State.START;
+                            return new Token(Kind.NUM_LIT, startPos, 1, chars, new SourceLocation(line, column));
+                        } else {
+                            state = State.IN_NUM;
+                            pos++;
+                            continue;
+                        }
+                    }
+                    switch (ch)
                     {
-                    	case ' ':
-                    	case '\t':
-                        pos++;
-                        break;
-                    	case '\n':
-                        pos++;
-                        line++;
-                        column = 0;
-                        break;
-                    	case '\r':
-                        pos++;
-                        break;
-                        case '\0':  
+                        case ' ':
+                        case '\t':
+                            pos++;
+                            break;
+                        case '\n':
+                            pos++;
+                            line++;
+                            column = 0;
+                            break;
+                        case '\r':
+                            pos++;
+                            break;
+                        case '\0':
                             return new Token(EOF, pos, 1, chars, new SourceLocation(line, column));
                         case '+':
                             pos++;
                             return new Token(Kind.PLUS, startPos, 1, chars, new SourceLocation(line, column));
                         case '=':
-                            if (chars[pos + 1] == '=') 
+                            if (chars[pos + 1] == '=')
                             {
                                 pos += 2;
                                 return new Token(Kind.EQ, startPos, 2, chars, new SourceLocation(line, column));
@@ -156,22 +162,42 @@ public class Lexer implements ILexer {
                                 pos++;
                                 return new Token(Kind.COLON, startPos, 1, chars, new SourceLocation(line, column));
                             }
-                            
+                        case '|':
+                            if (chars[pos + 1] == '|') {
+                                pos += 2;
+                                return new Token(Kind.OR, startPos, 2, chars, new SourceLocation(line, column));
+                            } else {
+                                pos++;
+                                return new Token(Kind.BITOR, startPos, 1, chars, new SourceLocation(line, column));
+                            }
+
                         case '-':
                             if (chars[pos + 1] == '>') {
-                                pos += 2;  
+                                pos += 2;
                                 return new Token(Kind.RARROW, startPos, 2, chars, new SourceLocation(line, column));
                             } else {
                                 pos++;
                                 return new Token(Kind.MINUS, startPos, 1, chars, new SourceLocation(line, column));
                             }
-                        case '>': 
-                            pos++;
-                            return new Token(Kind.GT, startPos, 1, chars, new SourceLocation(line, column));
+                        case '>':
+                            if (chars[pos + 1] == '=') {
+                                pos += 2;
+                                return new Token(Kind.GE, startPos, 2, chars, new SourceLocation(line, column));
+                            } else {
+                                pos++;
+                                return new Token(Kind.GT, startPos, 1, chars, new SourceLocation(line, column));
+                            }
                         case '*':
+                            if (chars[pos + 1] == '*') {
+                                pos += 2;
+                                return new Token(Kind.EXP, startPos, 2, chars, new SourceLocation(line, column));
+                            } else {
+                                pos++;
+                                return new Token(Kind.TIMES, startPos, 1, chars, new SourceLocation(line, column));
+                            }
+                        case '^':
                             pos++;
-                            return new Token(Kind.TIMES, startPos, 1, chars, new SourceLocation(line, column));
-
+                            return new Token(Kind.RETURN, startPos, 1, chars, new SourceLocation(line, column));
                         case '[':
                             if (chars[pos + 1] == ']') {
                                 pos += 2;
@@ -198,12 +224,18 @@ public class Lexer implements ILexer {
                         case ';':
                             pos++;
                             return new Token(Kind.SEMI, startPos, 1, chars, new SourceLocation(line, column));
+                        case '(':
+                            pos++;
+                            return new Token(Kind.LPAREN, startPos, 1, chars, new SourceLocation(line, column));
+                        case ')':
+                            pos++;
+                            return new Token(Kind.RPAREN, startPos, 1, chars, new SourceLocation(line, column));
                         case '#':
-                            pos++;  
-                            if (chars[pos] == '#') {  
-                                pos++;  
+                            pos++;
+                            if (chars[pos] == '#') {
+                                pos++;
                                 while (chars[pos] != '\n' && chars[pos] != '\0') {
-                                    pos++; 
+                                    pos++;
                                 }
                                 if (chars[pos] == '\n') {
                                     line++;
@@ -215,10 +247,10 @@ public class Lexer implements ILexer {
                                 throw new LexicalException(new SourceLocation(line, column), "Single '#' is not a valid token. Expected '##' for comment.");
                             }
                         case '&':
-                            pos++; 
-                            if (chars[pos] == '&') {  
-                                pos++; 
-                                column++;  
+                            pos++;
+                            if (chars[pos] == '&') {
+                                pos++;
+                                column++;
                                 return new Token(Kind.AND, startPos, 2, chars, new SourceLocation(line, column - 1));
                             } else {
                                 return new Token(Kind.BITAND, startPos, 1, chars, new SourceLocation(line, column));
@@ -235,46 +267,42 @@ public class Lexer implements ILexer {
                     } else {
                         throw new LexicalException(new SourceLocation(line, column), "Unexpected character: " + ch);
                     }
-                    
+
                 case HAVE_ZERO:
                     state = State.START;
                     return new Token(Kind.NUM_LIT, startPos, 1, chars, new SourceLocation(line, column));
-                    
+
                 case IN_NUM:
                     while (Character.isDigit(chars[pos])) {
-						pos++;
-					}
-
-					String chArray = String.copyValueOf(chars);
-					String temp = chArray.substring(startPos,pos);
-
-					try {
-						int num = Integer.parseInt(temp);
-						if (num < Integer.MAX_VALUE) {
-							state = State.START;
-							return new Token(Kind.NUM_LIT, startPos, pos - startPos, chars, new SourceLocation(line, column));
-						} else {
-							throw new LexicalException("Number is out of range");
-						}
-					} catch (NumberFormatException e) {
-						throw new LexicalException("Invalid");
-					}
-
-                case IN_IDENT:
-                	while (Character.isJavaIdentifierPart(chars[pos])) 
-                	{
                         pos++;
                     }
-                    String ident = new String(chars, startPos, pos - startPos);  
+
+                    String numStr = new String(chars, startPos, pos - startPos);
+
+                    try {
+                        Integer.parseInt(numStr);
+                        state = State.START;
+                        return new Token(Kind.NUM_LIT, startPos, pos - startPos, chars, new SourceLocation(line, column));
+                    } catch (NumberFormatException e) {
+                        throw new LexicalException(new SourceLocation(line, column), "Invalid number");
+                    }
+
+                case IN_IDENT:
+                    while (isIdentifierPart(chars[pos])) {
+                        pos++;
+                    }
+                    String ident = new String(chars, startPos, pos - startPos);
 
                     Kind kind = reservedWordsMap.get(ident);
-                    if (kind == null) {  
+                    if (kind == null) {
                         state = State.START;
                         return new Token(Kind.IDENT, startPos, ident.length(), chars, new SourceLocation(line, column));
-                    } else {  
+                    } else {
                         state = State.START;
                         return new Token(kind, startPos, ident.length(), chars, new SourceLocation(line, column));
                     }
+
+
                 default:
                     throw new LexicalException(new SourceLocation(line, column), "Unexpected character: " + ch);
             }

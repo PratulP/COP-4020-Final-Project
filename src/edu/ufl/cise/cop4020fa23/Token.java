@@ -50,10 +50,7 @@ public class Token implements IToken {
 
 	@Override
 	public String text() {
-		if(length > 0) {
-			return String.copyValueOf(source, pos, length);
-		}
-		return "";
+		return String.copyValueOf(source, pos, length);
 	}
 
 
