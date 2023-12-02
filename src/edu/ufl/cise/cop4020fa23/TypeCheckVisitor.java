@@ -431,10 +431,11 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitNumLitExpr(NumLitExpr numLitExpr, Object arg) throws PLCCompilerException {
-        System.out.println("Visiting NumLitExpr: " + numLitExpr.getText());
+        System.out.println("Visiting NumLitExpr: Value=" + numLitExpr.getText() + ", Type=INT");
         numLitExpr.setType(Type.INT);  
         return Type.INT;
     }
+
 
 
 
@@ -467,31 +468,37 @@ public class TypeCheckVisitor implements ASTVisitor {
     public Object visitPostfixExpr(PostfixExpr postfixExpr, Object arg) throws PLCCompilerException {
         Expr primaryExpr = postfixExpr.primary();
         Type primaryType = (Type) primaryExpr.visit(this, arg);
-        if (primaryType == null) {
-            throw new TypeCheckException("Primary expression in postfix expression does not have a valid type");
-        }
 
         PixelSelector pixelSelector = postfixExpr.pixel();
-        if (pixelSelector != null) {
-            pixelSelector.visit(this, arg);
-            if (primaryType != Type.IMAGE) {
-                throw new TypeCheckException("Pixel selector can only be used with IMAGE type");
-            }
-        }
-
         ChannelSelector channelSelector = postfixExpr.channel();
-        if (channelSelector != null) {
-            channelSelector.visit(this, arg);
-            if (primaryType != Type.PIXEL && (pixelSelector == null || primaryType != Type.IMAGE)) {
-                throw new TypeCheckException("Channel selector can only be used with PIXEL or IMAGE type");
+
+        if (primaryType == Type.IMAGE) {
+            if (channelSelector != null && pixelSelector == null) {
+                channelSelector.visit(this, arg);
+                postfixExpr.setType(Type.INT);
+                return Type.INT;
+            } else if (pixelSelector != null) {
+                pixelSelector.visit(this, arg);
+                if (channelSelector != null) {
+                    channelSelector.visit(this, arg);
+                    postfixExpr.setType(Type.INT);
+                    return Type.INT;
+                } else {
+                    postfixExpr.setType(Type.PIXEL);
+                    return Type.PIXEL;
+                }
             }
-            postfixExpr.setType(Type.INT); 
+        } else if (primaryType == Type.PIXEL && channelSelector != null) {
+            channelSelector.visit(this, arg);
+            postfixExpr.setType(Type.INT);
             return Type.INT;
         }
 
-        postfixExpr.setType(primaryType);
-        return primaryType;
+        throw new TypeCheckException("Invalid type or context for postfix expression: " + postfixExpr);
     }
+
+
+
 
 
     @Override
@@ -538,6 +545,14 @@ public class TypeCheckVisitor implements ASTVisitor {
 
             Kind functionKind = root.getTypeToken().kind();
             Type expectedReturnType = Type.kind2type(functionKind);
+
+            if (returnStatement.getE() instanceof PostfixExpr) {
+                PostfixExpr postfixExpr = (PostfixExpr) returnStatement.getE();
+                if (postfixExpr.primary().getType() == Type.IMAGE && postfixExpr.channel() != null) {
+                    exprType = Type.INT;
+                }
+            }
+
             if (exprType != expectedReturnType) {
                 throw new TypeCheckException("Return type mismatch. Expected: " + expectedReturnType + ", Found: " + exprType);
             }
