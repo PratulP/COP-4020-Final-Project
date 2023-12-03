@@ -44,7 +44,6 @@ public class TypeCheckVisitor implements ASTVisitor {
 
 
     
-    @Override
     public Object visitBinaryExpr(BinaryExpr binaryExpr, Object arg) throws PLCCompilerException {
         Type leftType = (Type) binaryExpr.getLeftExpr().visit(this, arg);
         Type rightType = (Type) binaryExpr.getRightExpr().visit(this, arg);
@@ -65,17 +64,27 @@ public class TypeCheckVisitor implements ASTVisitor {
                 } else if (leftType == Type.PIXEL && rightType == Type.PIXEL) {
                     binaryExpr.setType(Type.PIXEL);
                     return Type.PIXEL;
+                } else if (leftType == Type.IMAGE && rightType == Type.IMAGE) {
+                    binaryExpr.setType(Type.IMAGE);
+                    return Type.IMAGE;
                 } else {
                     throw new TypeCheckException("Type mismatch for 'PLUS' operation");
                 }
 
             case MINUS:
             case TIMES:
-                if (leftType != Type.INT || rightType != Type.INT) {
-                    throw new TypeCheckException("Arithmetic operations require INT operands");
+                if ((leftType == Type.PIXEL && rightType == Type.INT) || (leftType == Type.INT && rightType == Type.PIXEL)) {
+                    binaryExpr.setType(Type.PIXEL);
+                    return Type.PIXEL;
+                } else if (leftType == Type.INT && rightType == Type.INT) {
+                    binaryExpr.setType(Type.INT);
+                    return Type.INT;
+                } else if (leftType == Type.IMAGE && rightType == Type.INT) {
+                    binaryExpr.setType(Type.IMAGE);
+                    return Type.IMAGE;
+                } else {
+                    throw new TypeCheckException("Arithmetic operations for 'TIMES' require INT operands or PIXEL and INT operands");
                 }
-                binaryExpr.setType(Type.INT);
-                return Type.INT;
 
             case DIV:
                 if (leftType == Type.IMAGE && rightType == Type.INT) {
@@ -84,6 +93,9 @@ public class TypeCheckVisitor implements ASTVisitor {
                 } else if (leftType == Type.INT && rightType == Type.INT) {
                     binaryExpr.setType(Type.INT);
                     return Type.INT;
+                } else if (leftType == Type.PIXEL && rightType == Type.INT) {
+                    binaryExpr.setType(Type.PIXEL);
+                    return Type.PIXEL;
                 } else {
                     throw new TypeCheckException("Invalid operands for DIV operation");
                 }
@@ -549,7 +561,7 @@ public class TypeCheckVisitor implements ASTVisitor {
             if (returnStatement.getE() instanceof PostfixExpr) {
                 PostfixExpr postfixExpr = (PostfixExpr) returnStatement.getE();
                 if (postfixExpr.primary().getType() == Type.IMAGE && postfixExpr.channel() != null) {
-                    exprType = Type.INT;
+                    return null;
                 }
             }
 
@@ -559,6 +571,8 @@ public class TypeCheckVisitor implements ASTVisitor {
         }
         return null;
     }
+
+
 
 
 
@@ -628,3 +642,4 @@ public class TypeCheckVisitor implements ASTVisitor {
         return null;
     }
 }
+
