@@ -399,11 +399,11 @@ public class CodeGenerator implements ASTVisitor {
 
     @Override
     public Object visitAssignmentStatement(AssignmentStatement assignmentStatement, Object arg) throws PLCCompilerException {
-        StringBuilder sb = (StringBuilder) arg;
+        StringBuilder sb = (StringBuilder)arg;
         LValue lValue = assignmentStatement.getlValue();
         Expr expr = assignmentStatement.getE();
 
-        lValue.visit(this, sb); 
+        lValue.visit(this, sb);
 
         Type lValueType = lValue.getVarType();
         Type exprType = expr.getType();
@@ -412,7 +412,7 @@ public class CodeGenerator implements ASTVisitor {
             NameDef nameDef = lValue.getNameDef();
             if (nameDef != null && nameDef.getDimension() != null) {
                 Dimension dim = nameDef.getDimension();
-                if (exprType == Type.PIXEL) {
+                if (exprType == Type.PIXEL || expr instanceof ExpandedPixelExpr) {
                     sb.append(" = ImageOps.setAllPixels(new BufferedImage(");
                     dim.getWidth().visit(this, sb);
                     sb.append(", ");
@@ -423,12 +423,10 @@ public class CodeGenerator implements ASTVisitor {
                 } else if (exprType == Type.STRING) {
                     sb.append(" = FileURLIO.readImage(");
                     expr.visit(this, sb);
-                    if (nameDef.getDimension() != null) {
-                        sb.append(", ");
-                        dim.getWidth().visit(this, sb);
-                        sb.append(", ");
-                        dim.getHeight().visit(this, sb);
-                    }
+                    sb.append(", ");
+                    dim.getWidth().visit(this, sb);
+                    sb.append(", ");
+                    dim.getHeight().visit(this, sb);
                     sb.append(");");
                 } else if (expr instanceof BinaryExpr && ((BinaryExpr) expr).getLeftExpr().getType() == Type.IMAGE) {
                     sb.append(" = ImageOps.binaryImageImageOp(ImageOps.OP.PLUS, ");
@@ -437,7 +435,7 @@ public class CodeGenerator implements ASTVisitor {
                     ((BinaryExpr) expr).getRightExpr().visit(this, sb);
                     sb.append(");");
                 } else {
-                    throw new PLCCompilerException("Unsupported expression type for image initialization");
+                    throw new PLCCompilerException("Unsupported expression type for image initialization: " + expr.getClass().getSimpleName());
                 }
             } else {
                 sb.append(" = ");
