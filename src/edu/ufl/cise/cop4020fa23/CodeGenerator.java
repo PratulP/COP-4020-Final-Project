@@ -394,10 +394,7 @@ public class CodeGenerator implements ASTVisitor {
         sb.append(";\n");
         return null;
     }
-
-
-
-    @Override
+    
     public Object visitAssignmentStatement(AssignmentStatement assignmentStatement, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder)arg;
         LValue lValue = assignmentStatement.getlValue();
@@ -428,12 +425,25 @@ public class CodeGenerator implements ASTVisitor {
                     sb.append(", ");
                     dim.getHeight().visit(this, sb);
                     sb.append(");");
-                } else if (expr instanceof BinaryExpr && ((BinaryExpr) expr).getLeftExpr().getType() == Type.IMAGE) {
-                    sb.append(" = ImageOps.binaryImageImageOp(ImageOps.OP.PLUS, ");
-                    ((BinaryExpr) expr).getLeftExpr().visit(this, sb);
+                } else if (expr instanceof BinaryExpr) {
+                    sb.append(" = ImageOps.makeImage(");
+                    dim.getWidth().visit(this, sb);
                     sb.append(", ");
-                    ((BinaryExpr) expr).getRightExpr().visit(this, sb);
-                    sb.append(");");
+                    dim.getHeight().visit(this, sb);
+                    sb.append(");\n");
+                    sb.append("for (int x = 0; x < ");
+                    dim.getWidth().visit(this, sb);
+                    sb.append("; x++) {\n");
+                    sb.append("    for (int y = 0; y < ");
+                    dim.getHeight().visit(this, sb);
+                    sb.append("; y++) {\n");
+                    sb.append("        ImageOps.setRGB(");
+                    lValue.visit(this, sb); 
+                    sb.append(", x, y, ");
+                    ((BinaryExpr) expr).visit(this, sb);
+                    sb.append(");\n");
+                    sb.append("    }\n");
+                    sb.append("}\n");
                 } else {
                     throw new PLCCompilerException("Unsupported expression type for image initialization: " + expr.getClass().getSimpleName());
                 }
@@ -441,6 +451,15 @@ public class CodeGenerator implements ASTVisitor {
                 sb.append(" = ");
                 expr.visit(this, sb);
             }
+        } else if (expr instanceof PostfixExpr && ((PostfixExpr) expr).channel() != null 
+                && ((PostfixExpr) expr).channel().color() == Kind.RES_red) {
+            sb.append(" = PixelOps.red(ImageOps.getRGB(");
+            ((PostfixExpr) expr).primary().visit(this, sb);
+            sb.append(", ");
+            ((PostfixExpr) expr).pixel().xExpr().visit(this, sb);
+            sb.append(", ");
+            ((PostfixExpr) expr).pixel().yExpr().visit(this, sb);
+            sb.append("))");
         } else {
             sb.append(" = ");
             expr.visit(this, sb);
