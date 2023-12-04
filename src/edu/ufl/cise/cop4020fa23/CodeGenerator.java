@@ -91,25 +91,23 @@ public class CodeGenerator implements ASTVisitor {
     public Object visitDeclaration(Declaration declaration, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
         NameDef nameDef = declaration.getNameDef();
-
         nameDef.visit(this, sb);
 
         if (nameDef.getType() == Type.IMAGE) {
             Dimension dim = nameDef.getDimension();
+            Expr initializer = declaration.getInitializer();
             if (dim != null) {
-                sb.append(" = new BufferedImage(");
-                dim.getWidth().visit(this, sb);
-                sb.append(", ");
-                dim.getHeight().visit(this, sb);
-                sb.append(", BufferedImage.TYPE_INT_ARGB);");
-            } else {
-                Expr initializer = declaration.getInitializer();
                 if (initializer instanceof IdentExpr) {
                     String imageUrl = ((IdentExpr) initializer).getName();
-                    sb.append(" = FileURLIO.readImage(").append(parameterNames.getOrDefault(imageUrl, imageUrl)).append(")");
+                    sb.append(" = FileURLIO.readImage(").append(parameterNames.getOrDefault(imageUrl, imageUrl))
+                      .append(", ").append(dim.getWidth()).append(", ").append(dim.getHeight()).append(");");
                 } else {
-                    sb.append(" = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)");
+                    sb.append(" = new BufferedImage(").append(dim.getWidth()).append(", ")
+                      .append(dim.getHeight()).append(", BufferedImage.TYPE_INT_ARGB);");
                 }
+            } else if (initializer != null && initializer instanceof IdentExpr) {
+                String imageUrl = ((IdentExpr) initializer).getName();
+                sb.append(" = FileURLIO.readImage(").append(parameterNames.getOrDefault(imageUrl, imageUrl)).append(")");
             }
         } else if (declaration.getInitializer() != null) {
             sb.append(" = ");
@@ -239,6 +237,9 @@ public class CodeGenerator implements ASTVisitor {
             case "BLACK":
                 sb.append("Color.BLACK.getRGB()");
                 break;
+            case "CYAN":
+                sb.append("Color.CYAN.getRGB()");
+                break;
             case "Z":
                 sb.append("255");
                 break;
@@ -364,7 +365,7 @@ public class CodeGenerator implements ASTVisitor {
 
         sb.append("ConsoleIO.write(");
         if (exprType == Type.PIXEL) {
-            sb.append("\"0x\" + Integer.toHexString(");
+            sb.append("Integer.toHexString(");
             writeStatement.getExpr().visit(this, sb);
             sb.append(")");
         } else {
@@ -406,16 +407,32 @@ public class CodeGenerator implements ASTVisitor {
         Type lValueType = lValue.getVarType();
         Type exprType = expr.getType();
 
-        if (lValueType == Type.IMAGE && exprType == Type.PIXEL) {
-            sb.append(" = ImageOps.makeImage(");
-            sb.append(lValue.getName());
-            sb.append(".getWidth(), ");
-            sb.append(lValue.getName());
-            sb.append(".getHeight());\nImageOps.setAllPixels(");
-            sb.append(lValue.getName());
-            sb.append(", ");
-            expr.visit(this, sb); 
-            sb.append(")");
+        if (lValueType == Type.IMAGE) {
+            NameDef nameDef = lValue.getNameDef();
+            if (nameDef != null && nameDef.getDimension() != null) {
+                Dimension dim = nameDef.getDimension();
+                sb.append(" = ImageOps.copyAndResize(");
+                expr.visit(this, sb);
+                sb.append(", ");
+                dim.getWidth().visit(this, sb);
+                sb.append(", ");
+                dim.getHeight().visit(this, sb);
+                sb.append(");");
+            } else if (exprType == Type.STRING) {
+                sb.append(" = FileURLIO.readImage(");
+                expr.visit(this, sb);
+                if (nameDef != null && nameDef.getDimension() != null) {
+                    Dimension dim = nameDef.getDimension();
+                    sb.append(", ");
+                    dim.getWidth().visit(this, sb);
+                    sb.append(", ");
+                    dim.getHeight().visit(this, sb);
+                }
+                sb.append(");");
+            } else {
+                sb.append(" = ");
+                expr.visit(this, sb);
+            }
         } else {
             sb.append(" = ");
             expr.visit(this, sb);
@@ -423,8 +440,6 @@ public class CodeGenerator implements ASTVisitor {
         sb.append(";\n");
         return null;
     }
-
-
 
 
     @Override
@@ -524,13 +539,26 @@ public class CodeGenerator implements ASTVisitor {
     public Object visitPixelSelector(PixelSelector pixelSelector, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
         System.out.println("Debug: Visiting PixelSelector");
-        sb.append("selectPixel(");
-        pixelSelector.xExpr().visit(this, sb);
-        sb.append(", ");
-        pixelSelector.yExpr().visit(this, sb);
-        sb.append(")");
+
+        if (pixelSelector.xExpr() instanceof IdentExpr && ((IdentExpr) pixelSelector.xExpr()).getNameDef() instanceof SyntheticNameDef &&
+            pixelSelector.yExpr() instanceof IdentExpr && ((IdentExpr) pixelSelector.yExpr()).getNameDef() instanceof SyntheticNameDef) {
+
+            String imageVarName = "image"; 
+
+            sb.append("for (int x = 0; x < ").append(imageVarName).append(".getWidth(); x++) {\n");
+            sb.append("    for (int y = 0; y < ").append(imageVarName).append(".getHeight(); y++) {\n");
+            sb.append("    }\n");
+            sb.append("}\n");
+        } else {
+            sb.append("selectPixel(");
+            pixelSelector.xExpr().visit(this, sb);
+            sb.append(", ");
+            pixelSelector.yExpr().visit(this, sb);
+            sb.append(")");
+        }
         return null;
     }
+
 
     @Override
     public Object visitPostfixExpr(PostfixExpr postfixExpr, Object arg) throws PLCCompilerException {
@@ -538,6 +566,7 @@ public class CodeGenerator implements ASTVisitor {
         Expr primaryExpr = postfixExpr.primary();
         PixelSelector pixelSelector = postfixExpr.pixel();
         ChannelSelector channelSelector = postfixExpr.channel();
+
         if (pixelSelector != null) {
             sb.append("ImageOps.getRGB(");
             primaryExpr.visit(this, sb);
@@ -547,35 +576,35 @@ public class CodeGenerator implements ASTVisitor {
             pixelSelector.yExpr().visit(this, sb);
             sb.append(")");
         } else if (channelSelector != null) {
-            Kind channelKind = channelSelector.color();
             if (primaryExpr.getType() == Type.IMAGE) {
                 String channelMethod = "";
-                switch (channelKind) {
+                switch (channelSelector.color()) {
                     case RES_red -> channelMethod = "extractRed";
                     case RES_green -> channelMethod = "extractGreen";
                     case RES_blue -> channelMethod = "extractBlue";
-                    default -> throw new UnsupportedOperationException("Unsupported channel selector: " + channelKind);
+                    default -> throw new UnsupportedOperationException("Unsupported channel selector: " + channelSelector.color());
                 }
                 sb.append("ImageOps.").append(channelMethod).append("(");
                 primaryExpr.visit(this, sb);
                 sb.append(")");
-            } else {
-                switch (channelKind) {
+            } else if (primaryExpr.getType() == Type.PIXEL) {
+                switch (channelSelector.color()) {
                     case RES_red -> sb.append("PixelOps.red(");
                     case RES_green -> sb.append("PixelOps.green(");
                     case RES_blue -> sb.append("PixelOps.blue(");
-                    default -> throw new UnsupportedOperationException("Unsupported channel selector: " + channelKind);
+                    default -> throw new UnsupportedOperationException("Unsupported channel selector: " + channelSelector.color());
                 }
                 primaryExpr.visit(this, sb);
                 sb.append(")");
+            } else {
+                throw new UnsupportedOperationException("Unsupported type for channel selector: " + primaryExpr.getType());
             }
         } else {
             primaryExpr.visit(this, sb);
         }
+
         return null;
     }
-
-
 
 
 }
