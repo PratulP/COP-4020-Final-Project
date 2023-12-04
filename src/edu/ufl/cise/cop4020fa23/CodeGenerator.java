@@ -70,6 +70,8 @@ public class CodeGenerator implements ASTVisitor {
 
         sb.append("    }\n");
         sb.append("}\n");
+        
+        System.out.println("Debug: Generating Java code for program: " + program.getName());
 
         return sb.toString();
     }
@@ -399,6 +401,9 @@ public class CodeGenerator implements ASTVisitor {
         StringBuilder sb = (StringBuilder)arg;
         LValue lValue = assignmentStatement.getlValue();
         Expr expr = assignmentStatement.getE();
+        
+        System.out.println("Debug: Processing assignment to " + lValue.getName());
+
 
         lValue.visit(this, sb);
 
@@ -425,25 +430,20 @@ public class CodeGenerator implements ASTVisitor {
                     sb.append(", ");
                     dim.getHeight().visit(this, sb);
                     sb.append(");");
-                } else if (expr instanceof BinaryExpr) {
+                } else if (expr instanceof BinaryExpr && lValue.getPixelSelector() != null) {
                     sb.append(" = ImageOps.makeImage(");
                     dim.getWidth().visit(this, sb);
                     sb.append(", ");
                     dim.getHeight().visit(this, sb);
-                    sb.append(");\n");
-                    sb.append("for (int x = 0; x < ");
+                    sb.append(");\nfor (int x = 0; x < ");
                     dim.getWidth().visit(this, sb);
-                    sb.append("; x++) {\n");
-                    sb.append("    for (int y = 0; y < ");
+                    sb.append("; x++) {\n    for (int y = 0; y < ");
                     dim.getHeight().visit(this, sb);
-                    sb.append("; y++) {\n");
-                    sb.append("        ImageOps.setRGB(");
+                    sb.append("; y++) {\n        ImageOps.setRGB(");
                     lValue.visit(this, sb); 
                     sb.append(", x, y, ");
-                    ((BinaryExpr) expr).visit(this, sb);
-                    sb.append(");\n");
-                    sb.append("    }\n");
-                    sb.append("}\n");
+                    expr.visit(this, sb);
+                    sb.append(");\n    }\n}\n");
                 } else {
                     throw new PLCCompilerException("Unsupported expression type for image initialization: " + expr.getClass().getSimpleName());
                 }
@@ -467,6 +467,7 @@ public class CodeGenerator implements ASTVisitor {
         sb.append(";\n");
         return null;
     }
+
 
     @Override
     public Object visitLValue(LValue lValue, Object arg) throws PLCCompilerException {
@@ -499,26 +500,34 @@ public class CodeGenerator implements ASTVisitor {
     @Override
     public Object visitDoStatement(DoStatement doStatement, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder)arg;
-        sb.append("boolean continueLoop = true;"); 
-        sb.append("do {");
+        sb.append("boolean continueLoop = true;\n"); 
+        sb.append("do {\n");
 
-        sb.append("continueLoop = false;");
+        sb.append("    continueLoop = false;\n");
 
         for (GuardedBlock guardedBlock : doStatement.getGuardedBlocks()) {
-            sb.append("if (");
+            sb.append("    if (");
             guardedBlock.getGuard().visit(this, sb);
-            sb.append(") {");
+            sb.append(") {\n");
             guardedBlock.getBlock().visit(this, sb);
-            sb.append("continueLoop = true;");
-            sb.append("}");
+
+            boolean containsReturn = false;
+            for (Block.BlockElem elem : guardedBlock.getBlock().getElems()) {
+                if (elem instanceof ReturnStatement) {
+                    containsReturn = true;
+                    break;
+                }
+            }
+
+            if (!containsReturn) {
+                sb.append("        continueLoop = true;\n");
+            }
+            sb.append("    }\n");
         }
 
-        sb.append("} while (continueLoop);");  
+        sb.append("} while (continueLoop);\n");  
         return null;
     }
-
-
-
 
     @Override
     public Object visitExpandedPixelExpr(ExpandedPixelExpr expandedPixelExpr, Object arg) throws PLCCompilerException {
