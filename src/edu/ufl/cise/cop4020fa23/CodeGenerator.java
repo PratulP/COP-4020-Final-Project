@@ -624,7 +624,20 @@ public class CodeGenerator implements ASTVisitor {
         PixelSelector pixelSelector = postfixExpr.pixel();
         ChannelSelector channelSelector = postfixExpr.channel();
 
-        if (pixelSelector != null) {
+        if (pixelSelector != null && channelSelector != null) {
+            switch (channelSelector.color()) {
+                case RES_red -> sb.append("PixelOps.red(");
+                case RES_green -> sb.append("PixelOps.green(");
+                case RES_blue -> sb.append("PixelOps.blue(");
+                default -> throw new UnsupportedOperationException("Unsupported channel selector: " + channelSelector.color());}
+            sb.append("ImageOps.getRGB(");
+            primaryExpr.visit(this,sb);
+            sb.append(", ");
+            pixelSelector.xExpr().visit(this, sb);
+            sb.append(", ");
+            pixelSelector.yExpr().visit(this, sb);
+            sb.append("))");
+        } else if (pixelSelector != null && channelSelector == null) {
             sb.append("ImageOps.getRGB(");
             primaryExpr.visit(this, sb);
             sb.append(", ");
@@ -632,7 +645,7 @@ public class CodeGenerator implements ASTVisitor {
             sb.append(", ");
             pixelSelector.yExpr().visit(this, sb);
             sb.append(")");
-        } else if (channelSelector != null) {
+        } else {
             if (primaryExpr.getType() == Type.IMAGE) {
                 String channelMethod = "";
                 switch (channelSelector.color()) {
@@ -656,12 +669,7 @@ public class CodeGenerator implements ASTVisitor {
             } else {
                 throw new UnsupportedOperationException("Unsupported type for channel selector: " + primaryExpr.getType());
             }
-        } else {
-            primaryExpr.visit(this, sb);
         }
-
         return null;
     }
-
-
 }
