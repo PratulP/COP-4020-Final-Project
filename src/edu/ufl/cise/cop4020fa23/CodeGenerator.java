@@ -93,18 +93,18 @@ public class CodeGenerator implements ASTVisitor {
     public Object visitDeclaration(Declaration declaration, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
         NameDef nameDef = declaration.getNameDef();
+        Expr initializer = declaration.getInitializer();
+        Dimension dim = nameDef.getDimension();
         nameDef.visit(this, sb);
 
-        if (nameDef.getType() == Type.IMAGE) {
-            Dimension dim = nameDef.getDimension();
-            Expr initializer = declaration.getInitializer();
+       if (nameDef.getType() == Type.IMAGE) {
             if (dim != null) {
                 if (initializer instanceof IdentExpr) {
                     String imageUrl = ((IdentExpr) initializer).getName();
                     sb.append(" = FileURLIO.readImage(").append(parameterNames.getOrDefault(imageUrl, imageUrl))
-                      .append(", ").append(dim.getWidth()).append(", ").append(dim.getHeight()).append(");");
+                          .append(", ").append(dim.getWidth()).append(", ").append(dim.getHeight()).append(");");
                 } else {
-                    sb.append(" = new BufferedImage(");
+                   sb.append(" = new BufferedImage(");
                     dim.getWidth().visit(this, sb);
                     sb.append(", ");
                     dim.getHeight().visit(this, sb);
@@ -120,8 +120,95 @@ public class CodeGenerator implements ASTVisitor {
         }
         sb.append(";\n");
         return null;
-    }
 
+
+
+    /*    if (nameDef.getType() == Type.IMAGE) {
+            if (dim == null) {
+                sb.append(" ");
+                declaration.getInitializer().visit(this,sb);
+                sb.append(");\n");
+                if (initializer.getType() == Type.STRING) {
+                    declaration.getInitializer().visit(this,sb);
+                    sb.append(" = FileURLIO.readImage(");
+                    nameDef.visit(this, sb);
+                    sb.append(");\n");
+                }
+                else if (initializer.getType() == Type.IMAGE) {
+                    declaration.getInitializer().visit(this,sb);
+                    sb.append(" = ImageOps.cloneImage(");
+                    nameDef.visit(this, sb);
+                    sb.append(");\n");
+                }}
+        } else if (nameDef.getType() == Type.PIXEL) {
+            sb.append(" ");
+            declaration.getInitializer().visit(this,sb);
+            sb.append(");\n");
+            if (dim != null) {
+                declaration.getInitializer().visit(this,sb);
+                sb.append(" = ");
+                nameDef.visit(this,sb);
+                sb.append(");\n");
+            }
+        }
+        else {
+                if (initializer == null) {
+                    sb.append(" ");
+                    declaration.getInitializer().visit(this,sb);
+                    sb.append(");\n");
+                    declaration.getInitializer().visit(this,sb);
+                    sb.append(" = ImageOps.makeImage(");
+                   dim.getWidth().visit(this,sb);
+                   sb.append(", ");
+                   dim.getHeight().visit(this, sb);
+                    sb.append(");\n");
+                }
+                else {
+                    if (initializer.getType() == Type.STRING) {
+                        sb.append(" ");
+                        declaration.getInitializer().visit(this,sb);
+                        sb.append(");\n");
+                        declaration.getInitializer().visit(this,sb);
+                        sb.append(" = FileURLIO.readImage(");
+                        nameDef.visit(this,sb);
+                        sb.append(", ");
+                        dim.getWidth().visit(this,sb);
+                        sb.append(", ");
+                        dim.getHeight().visit(this, sb);
+                        sb.append(");\n");
+                    }
+                    else if (initializer.getType() == Type.PIXEL) {
+                        sb.append(" ");
+                        declaration.getInitializer().visit(this,sb);
+                        sb.append(");\n");
+                        declaration.getInitializer().visit(this,sb);
+                        sb.append(" = ImageOps.makeImage(");
+                        dim.getWidth().visit(this,sb);
+                        sb.append(", ");
+                        dim.getHeight().visit(this, sb);
+                        sb.append(");\n");
+                        sb.append("ImageOps.setAllPixels(");
+                        declaration.getInitializer().visit(this,sb);
+                        sb.append(", ");
+                        nameDef.visit(this,sb);
+                        sb.append(");\n");
+                    } else if (initializer.getType() == Type.IMAGE) {
+                        sb.append(" ");
+                        declaration.getInitializer().visit(this,sb);
+                        sb.append(");\n");
+                        declaration.getInitializer().visit(this,sb);
+                        sb.append(" = ImageOps.copyAndResize(");
+                        nameDef.visit(this,sb);
+                        sb.append(", ");
+                        dim.getWidth().visit(this,sb);
+                        sb.append(", ");
+                        dim.getHeight().visit(this, sb);
+                        sb.append(");\n");
+                    }
+                }
+            }
+        return null;*/
+    }
 
     @Override
     public Object visitConditionalExpr(ConditionalExpr conditionalExpr, Object arg) throws PLCCompilerException {
