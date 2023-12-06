@@ -155,18 +155,40 @@ public class CodeGenerator implements ASTVisitor {
         Type leftType = binaryExpr.getLeftExpr().getType();
         Type rightType = binaryExpr.getRightExpr().getType();
 
+
+
         if (binaryExpr.getOpKind() == Kind.PLUS && leftType == Type.IMAGE && rightType == Type.IMAGE) {
             sb.append("ImageOps.binaryImageImageOp(ImageOps.OP.PLUS, ");
             binaryExpr.getLeftExpr().visit(this, sb);
             sb.append(", ");
             binaryExpr.getRightExpr().visit(this, sb);
             sb.append(")");
-        } else if (binaryExpr.getOpKind() == Kind.EXP) {
-            sb.append("(int)Math.pow(");
+        }
+        else if (binaryExpr.getOpKind() == Kind.EQ && leftType == Type.IMAGE && rightType == Type.IMAGE) {
+            sb.append("ImageOps.binaryPackedPixelBooleanOp(ImageOps.BoolOP.EQUALS,");
+            binaryExpr.getLeftExpr().visit(this, sb);
+            sb.append(", ");
+            binaryExpr.getRightExpr().visit(this,sb);
+            sb.append(")");
+        } else if (binaryExpr.getOpKind() == Kind.EQ && leftType == Type.IMAGE && rightType == Type.INT) {
+            sb.append("ImageOps.binaryPackedPixelBooleanOp(ImageOps.BoolOP.EQUALS,");
+            binaryExpr.getLeftExpr().visit(this, sb);
+            sb.append(", ");
+            binaryExpr.getRightExpr().visit(this,sb);
+            sb.append(")");
+        } else if (binaryExpr.getOpKind() == Kind.EQ && leftType == Type.PIXEL && rightType == Type.PIXEL) {
+            sb.append("ImageOps.binaryPackedPixelBooleanOp(ImageOps.BoolOP.EQUALS,");
             binaryExpr.getLeftExpr().visit(this, sb);
             sb.append(", ");
             binaryExpr.getRightExpr().visit(this, sb);
             sb.append(")");
+        }
+        else if (binaryExpr.getOpKind() == Kind.EXP) {
+            sb.append("((int)Math.round(Math.pow(");
+            binaryExpr.getLeftExpr().visit(this, sb);
+            sb.append(", ");
+            binaryExpr.getRightExpr().visit(this, sb);
+            sb.append(")))");
         } else if (binaryExpr.getOpKind() == Kind.TIMES && (leftType == Type.IMAGE && rightType == Type.INT)) {
             sb.append("ImageOps.binaryImageScalarOp(ImageOps.OP.TIMES, ");
             binaryExpr.getLeftExpr().visit(this, sb);
