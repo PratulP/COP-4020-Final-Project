@@ -440,7 +440,11 @@ public class CodeGenerator implements ASTVisitor {
 
         lValue.visit(this, sb);
 
-        if (lValueType == Type.IMAGE) {
+        if (lValueType == Type.IMAGE && exprType == Type.IMAGE) {
+            sb.append(" = ");
+            expr.visit(this, sb);
+            sb.append(";");
+        } else if (lValueType == Type.IMAGE) {
             NameDef nameDef = lValue.getNameDef();
             if (nameDef != null && nameDef.getDimension() != null) {
                 Dimension dim = nameDef.getDimension();
@@ -470,7 +474,7 @@ public class CodeGenerator implements ASTVisitor {
                     sb.append("; x++) {\n    for (int y = 0; y < ");
                     dim.getHeight().visit(this, sb);
                     sb.append("; y++) {\n        ImageOps.setRGB(");
-                    lValue.visit(this, sb); 
+                    lValue.visit(this, sb);
                     sb.append(", x, y, ");
                     expr.visit(this, sb);
                     sb.append(");\n    }\n}\n");
@@ -480,6 +484,7 @@ public class CodeGenerator implements ASTVisitor {
             } else {
                 sb.append(" = ");
                 expr.visit(this, sb);
+                sb.append(";");
             }
         } else if (expr instanceof PostfixExpr && ((PostfixExpr) expr).channel() != null 
                 && ((PostfixExpr) expr).channel().color() == Kind.RES_red) {
@@ -497,7 +502,6 @@ public class CodeGenerator implements ASTVisitor {
         sb.append(";\n");
         return null;
     }
-
 
     @Override
     public Object visitLValue(LValue lValue, Object arg) throws PLCCompilerException {
