@@ -45,6 +45,15 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     
     public Object visitBinaryExpr(BinaryExpr binaryExpr, Object arg) throws PLCCompilerException {
+        Expr leftExpr = binaryExpr.getLeftExpr();
+        Expr rightExpr = binaryExpr.getRightExpr();
+
+        if (leftExpr instanceof IdentExpr && ((IdentExpr) leftExpr).getNameDef() instanceof SyntheticNameDef ||
+            rightExpr instanceof IdentExpr && ((IdentExpr) rightExpr).getNameDef() instanceof SyntheticNameDef) {
+            binaryExpr.setType(Type.INT);
+            return Type.INT;
+        }
+
         Type leftType = (Type) binaryExpr.getLeftExpr().visit(this, arg);
         Type rightType = (Type) binaryExpr.getRightExpr().visit(this, arg);
         Kind opKind = binaryExpr.getOpKind();
@@ -137,6 +146,7 @@ public class TypeCheckVisitor implements ASTVisitor {
                 throw new TypeCheckException("Unsupported binary operation: " + opKind);
         }
     }
+
 
     
     @Override
@@ -447,27 +457,32 @@ public class TypeCheckVisitor implements ASTVisitor {
         numLitExpr.setType(Type.INT);  
         return Type.INT;
     }
-
-
-
-
-
-
+    
     @Override
     public Object visitPixelSelector(PixelSelector pixelSelector, Object arg) throws PLCCompilerException {
         System.out.println("Visiting Pixel Selector in Expression");
 
         Expr xExpr = pixelSelector.xExpr();
-        Type xExprType = (Type) xExpr.visit(this, arg);
-        if (xExpr instanceof IdentExpr && xExprType == null) {
-            throw new TypeCheckException("Undefined identifier in PixelSelector for X coordinate: " + ((IdentExpr) xExpr).getName());
+        Expr yExpr = pixelSelector.yExpr();
+
+        if (xExpr instanceof IdentExpr) {
+            IdentExpr xIdentExpr = (IdentExpr) xExpr;
+            NameDef xNameDef = symbolTable.lookup(xIdentExpr.getName());
+            if (xNameDef == null || xNameDef instanceof SyntheticNameDef) {
+                return Type.INT;
+            }
+        }
+        
+        if (yExpr instanceof IdentExpr) {
+            IdentExpr yIdentExpr = (IdentExpr) yExpr;
+            NameDef yNameDef = symbolTable.lookup(yIdentExpr.getName());
+            if (yNameDef == null || yNameDef instanceof SyntheticNameDef) {
+                return Type.INT;
+            }
         }
 
-        Expr yExpr = pixelSelector.yExpr();
+        Type xExprType = (Type) xExpr.visit(this, arg);
         Type yExprType = (Type) yExpr.visit(this, arg);
-        if (yExpr instanceof IdentExpr && yExprType == null) {
-            throw new TypeCheckException("Undefined identifier in PixelSelector for Y coordinate: " + ((IdentExpr) yExpr).getName());
-        }
 
         return null;
     }
@@ -642,4 +657,3 @@ public class TypeCheckVisitor implements ASTVisitor {
         return null;
     }
 }
-
