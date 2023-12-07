@@ -27,6 +27,8 @@ public class CodeGenerator implements ASTVisitor {
     private Stack<SymbolTable> symbolTableStack = new Stack<>();
     private int uniqueCounter = 1;
     private Map<String, String> parameterNames = new HashMap<>();
+    private Map<String, Integer> variableScopes = new HashMap<>();
+
 
     public CodeGenerator(String packageName) {
         this.packageName = (packageName == null || packageName.equals("defaultPackageName") || packageName.isEmpty()) ? null : packageName;
@@ -89,7 +91,6 @@ public class CodeGenerator implements ASTVisitor {
     }
     
     
-    @Override
     public Object visitDeclaration(Declaration declaration, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
         NameDef nameDef = declaration.getNameDef();
@@ -97,14 +98,17 @@ public class CodeGenerator implements ASTVisitor {
         Dimension dim = nameDef.getDimension();
         nameDef.visit(this, sb);
 
-       if (nameDef.getType() == Type.IMAGE) {
+        if (nameDef.getType() == Type.IMAGE) {
             if (dim != null) {
                 if (initializer instanceof IdentExpr) {
                     String imageUrl = ((IdentExpr) initializer).getName();
-                    sb.append(" = FileURLIO.readImage(").append(parameterNames.getOrDefault(imageUrl, imageUrl))
-                          .append(", ").append(dim.getWidth()).append(", ").append(dim.getHeight()).append(");");
+                    sb.append(" = FileURLIO.readImage(").append(parameterNames.getOrDefault(imageUrl, imageUrl)).append(", ");
+                    dim.getWidth().visit(this, sb);
+                    sb.append(", ");
+                    dim.getHeight().visit(this, sb);
+                    sb.append(");");
                 } else {
-                   sb.append(" = new BufferedImage(");
+                    sb.append(" = new BufferedImage(");
                     dim.getWidth().visit(this, sb);
                     sb.append(", ");
                     dim.getHeight().visit(this, sb);
@@ -120,96 +124,11 @@ public class CodeGenerator implements ASTVisitor {
         }
         sb.append(";\n");
         return null;
-
-
-
-    /*    if (nameDef.getType() == Type.IMAGE) {
-            if (dim == null) {
-                sb.append(" ");
-                declaration.getInitializer().visit(this,sb);
-                sb.append(");\n");
-                if (initializer.getType() == Type.STRING) {
-                    declaration.getInitializer().visit(this,sb);
-                    sb.append(" = FileURLIO.readImage(");
-                    nameDef.visit(this, sb);
-                    sb.append(");\n");
-                }
-                else if (initializer.getType() == Type.IMAGE) {
-                    declaration.getInitializer().visit(this,sb);
-                    sb.append(" = ImageOps.cloneImage(");
-                    nameDef.visit(this, sb);
-                    sb.append(");\n");
-                }}
-        } else if (nameDef.getType() == Type.PIXEL) {
-            sb.append(" ");
-            declaration.getInitializer().visit(this,sb);
-            sb.append(");\n");
-            if (dim != null) {
-                declaration.getInitializer().visit(this,sb);
-                sb.append(" = ");
-                nameDef.visit(this,sb);
-                sb.append(");\n");
-            }
-        }
-        else {
-                if (initializer == null) {
-                    sb.append(" ");
-                    declaration.getInitializer().visit(this,sb);
-                    sb.append(");\n");
-                    declaration.getInitializer().visit(this,sb);
-                    sb.append(" = ImageOps.makeImage(");
-                   dim.getWidth().visit(this,sb);
-                   sb.append(", ");
-                   dim.getHeight().visit(this, sb);
-                    sb.append(");\n");
-                }
-                else {
-                    if (initializer.getType() == Type.STRING) {
-                        sb.append(" ");
-                        declaration.getInitializer().visit(this,sb);
-                        sb.append(");\n");
-                        declaration.getInitializer().visit(this,sb);
-                        sb.append(" = FileURLIO.readImage(");
-                        nameDef.visit(this,sb);
-                        sb.append(", ");
-                        dim.getWidth().visit(this,sb);
-                        sb.append(", ");
-                        dim.getHeight().visit(this, sb);
-                        sb.append(");\n");
-                    }
-                    else if (initializer.getType() == Type.PIXEL) {
-                        sb.append(" ");
-                        declaration.getInitializer().visit(this,sb);
-                        sb.append(");\n");
-                        declaration.getInitializer().visit(this,sb);
-                        sb.append(" = ImageOps.makeImage(");
-                        dim.getWidth().visit(this,sb);
-                        sb.append(", ");
-                        dim.getHeight().visit(this, sb);
-                        sb.append(");\n");
-                        sb.append("ImageOps.setAllPixels(");
-                        declaration.getInitializer().visit(this,sb);
-                        sb.append(", ");
-                        nameDef.visit(this,sb);
-                        sb.append(");\n");
-                    } else if (initializer.getType() == Type.IMAGE) {
-                        sb.append(" ");
-                        declaration.getInitializer().visit(this,sb);
-                        sb.append(");\n");
-                        declaration.getInitializer().visit(this,sb);
-                        sb.append(" = ImageOps.copyAndResize(");
-                        nameDef.visit(this,sb);
-                        sb.append(", ");
-                        dim.getWidth().visit(this,sb);
-                        sb.append(", ");
-                        dim.getHeight().visit(this, sb);
-                        sb.append(");\n");
-                    }
-                }
-            }
-        return null;*/
     }
 
+
+
+    
     @Override
     public Object visitConditionalExpr(ConditionalExpr conditionalExpr, Object arg) throws PLCCompilerException {
         StringBuilder sb = (StringBuilder) arg;
@@ -429,13 +348,18 @@ public class CodeGenerator implements ASTVisitor {
         StringBuilder sb = (StringBuilder) arg;
         String javaType = getJavaType(nameDef.getType());
         String originalName = nameDef.getIdentToken().text();
-        String uniqueName = getUniqueName(originalName);
+        int scopeLevel = symbolTable.getCurrentScope();
+        String uniqueName = getUniqueName(originalName + "_" + scopeLevel);
 
         parameterNames.put(originalName, uniqueName);
+        variableScopes.put(originalName, scopeLevel);
 
         sb.append(javaType).append(" ").append(uniqueName);
         return null;
     }
+
+
+
 
     @Override
     public Object visitIdentExpr(IdentExpr identExpr, Object arg) throws PLCCompilerException {
@@ -445,13 +369,14 @@ public class CodeGenerator implements ASTVisitor {
         }
 
         String originalName = identExpr.getName();
-        String identifierName = parameterNames.getOrDefault(originalName, getUniqueName(originalName));
+        Integer scopeLevel = variableScopes.getOrDefault(originalName, symbolTable.getCurrentScope());
+        String identifierName = parameterNames.getOrDefault(originalName, getUniqueName(originalName + "_" + scopeLevel));
 
         sb.append(identifierName);
         return null;
     }
 
-
+    
     private String getUniqueName(String name) {
         if (!parameterNames.containsKey(name)) {
             return name + "_" + uniqueCounter++;
@@ -510,14 +435,10 @@ public class CodeGenerator implements ASTVisitor {
         StringBuilder sb = (StringBuilder)arg;
         LValue lValue = assignmentStatement.getlValue();
         Expr expr = assignmentStatement.getE();
-        
-        System.out.println("Debug: Processing assignment to " + lValue.getName());
-
-
-        lValue.visit(this, sb);
-
         Type lValueType = lValue.getVarType();
         Type exprType = expr.getType();
+
+        lValue.visit(this, sb);
 
         if (lValueType == Type.IMAGE) {
             NameDef nameDef = lValue.getNameDef();
